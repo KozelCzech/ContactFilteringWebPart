@@ -1,0 +1,25 @@
+/* Default styles from scaffolding are fine, or you can add/modify: */
+.ContactFiltering {
+  /* .container { // if you used this class from default scaffold
+    max-width: 700px;
+    margin: 0px auto;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 25px 50px 0 rgba(0, 0, 0, 0.1);
+  } */
+}
+
+.filtersContainer {
+  margin-bottom: 16px;
+  display: flex; /* Example: if you want filters side-by-side later */
+  gap: 16px; /* Space between filter elements if they are flex items */
+}
+
+.actionsContainer {
+  margin-bottom: 16px;
+}
+
+.resultsContainer {
+  margin-top: 16px;
+  border: 1px solid #ccc; /* Just to see it */
+  padding: 10px;
+  min-height: 100px;
+}

@@ -1,0 +1,18 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "18.17.1",
+    "sdksVersions": {},
+    "version": "1.21.1",
+    "libraryName": "contact-filtering-web-part",
+    "libraryId": "4e4e10bb-8d1a-41e4-a6d4-99bba11d9cfd",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "ContactFilteringWebPart",
+    "solutionShortDescription": "ContactFilteringWebPart description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}
