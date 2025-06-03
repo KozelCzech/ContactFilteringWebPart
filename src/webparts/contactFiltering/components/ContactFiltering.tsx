@@ -7,6 +7,8 @@ import { PrimaryButton } from '@fluentui/react/lib/Button';
 import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
 
 import { IContact } from '../models/IContact';
+import ContactCard from './ContactCard';
+
 
 export interface IContactFilteringState {
   contacts: IContact[];
@@ -44,7 +46,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
       );
     }
 
-    if (selectedDepartment) {
+    if (selectedDepartment && selectedDepartment !== "") {
       filterParts.push(`(Department eq '${selectedDepartment}')`);
     }
 
@@ -93,8 +95,12 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
       const departmentField = await this.props.sp.web.lists.getByTitle('ContactFilteringTest').fields.getByInternalNameOrTitle('Department')();
 
       if (departmentField && departmentField.Choices) {
-        const options: IDropdownOption[] = departmentField.Choices.map((choice: string) => {
-          return { key: choice, text: choice };
+        const options: IDropdownOption[] = [
+          { key: "", text: "All Departments"}
+        ];
+
+        departmentField.Choices.forEach((choice: string) => {
+          options.push({ key: choice, text: choice });
         });
         this.setState({ departmentOptions: options, isLoadingDepartments: false });
         console.log("Fetched department options: ", options);
@@ -119,7 +125,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
     if (option) {
       this.setState({ selectedDepartment: option.key });
     } else {
-      this.setState({ selectedDepartment: undefined });
+      this.setState({ selectedDepartment: "" });
     }
   }
 
@@ -127,13 +133,13 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
   private _onClearFilterClick = (): void => {
     this.setState({ 
     searchText: "", 
-    selectedDepartment: undefined 
+    selectedDepartment: "",
   }, () => {
     // Call _fetchContacts in the setState callback to ensure state is updated first
     void this._fetchContacts(); // Fetch all items (no filter string passed)
   });
-  }
 
+  }
 
 
   public componentDidMount(): void {
@@ -187,21 +193,11 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
           ) : (
             <>
               <p>Fetched {contacts.length} contacts from ContactFilteringTest.</p>
-              <ul>
-                {contacts.map((contact) => (
-                  <li key={contact.Id}>
-                    {contact.Title}
-                    <br />
-                    {/* Use Person.Title for the display name.
-                        You can use Person.FirstName and Person.LastName if they prove to be reliably populated.
-                        Using ?. (optional chaining) is a good safety measure. */}
-                    {contact.FirstName} {contact.LastName}{/* This should be the display name */}
-                    <br />
-                    ({contact.Department})
-
-                  </li>
+              <div className={styles.cardsGridContainer}>
+                {contacts.map((contact: IContact) => (
+                  <ContactCard key={contact.Id} contact={contact} />
                 ))}
-              </ul>
+              </div>
             </>
           )}
         </div>

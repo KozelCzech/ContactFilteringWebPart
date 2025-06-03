@@ -23,3 +23,56 @@
   padding: 10px;
   min-height: 100px;
 }
+
+
+.contactCard {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 15px;
+  margin: 8px;
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: calc(20% - 16px); /* Example: for 5 cards per row, considering margin */
+  min-width: 180px; /* Minimum width for a card */
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+
+  h3 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 1.0em;
+    color: #333;
+  }
+
+  p {
+    margin: 4px 0;
+    font-size: 0.9em;
+    color: #555;
+  }
+}
+
+.cardHeader {
+  margin-bottom: 10px;
+}
+
+.cardTitle { // For the list item's 'Title' field if shown
+  font-size: 0.8em;
+  font-style: italic;
+  color: #777;
+}
+
+.cardBody {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.cardFooter {
+  margin-top: 10px;
+  font-size: 0.8em;
+  color: #777;
+}
+
+.cardsGridContainer {
+  display: flex;
+  flex-wrap: wrap; // Allow cards to wrap to the next line
+  margin: -8px; /* Negative margin to counteract card margins for edge alignment */
+}
