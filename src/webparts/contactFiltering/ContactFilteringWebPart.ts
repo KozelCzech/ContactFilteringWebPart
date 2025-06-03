@@ -12,6 +12,11 @@ import * as strings from 'ContactFilteringWebPartStrings';
 import ContactFiltering from './components/ContactFiltering';
 import { IContactFilteringProps } from './components/IContactFilteringProps';
 
+import { spfi, SPFI, SPFx } from '@pnp/sp';
+import '@pnp/sp/webs';
+import '@pnp/sp/lists';
+import '@pnp/sp/items';
+import '@pnp/sp/fields';
 export interface IContactFilteringWebPartProps {
   description: string;
 }
@@ -20,11 +25,13 @@ export default class ContactFilteringWebPart extends BaseClientSideWebPart<ICont
 
   private _isDarkTheme: boolean = false;
   private _environmentMessage: string = '';
+  private _sp: SPFI;
 
   public render(): void {
     const element: React.ReactElement<IContactFilteringProps> = React.createElement(
       ContactFiltering,
       {
+        sp: this._sp,
         description: this.properties.description,
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
@@ -36,7 +43,11 @@ export default class ContactFilteringWebPart extends BaseClientSideWebPart<ICont
     ReactDom.render(element, this.domElement);
   }
 
-  protected onInit(): Promise<void> {
+  protected async onInit(): Promise<void> {
+    await super.onInit();
+    this._sp = spfi().using(SPFx(this.context));
+
+
     return this._getEnvironmentMessage().then(message => {
       this._environmentMessage = message;
     });
