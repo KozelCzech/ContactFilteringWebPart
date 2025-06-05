@@ -17,6 +17,7 @@ import '@pnp/sp/webs';
 import '@pnp/sp/lists';
 import '@pnp/sp/items';
 import '@pnp/sp/fields';
+
 export interface IContactFilteringWebPartProps {
   description: string;
 }
@@ -32,6 +33,7 @@ export default class ContactFilteringWebPart extends BaseClientSideWebPart<ICont
       ContactFiltering,
       {
         sp: this._sp,
+        webAbsoluteUrl: this.context.pageContext.web.absoluteUrl,
         description: this.properties.description,
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,

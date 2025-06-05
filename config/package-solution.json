@@ -3,7 +3,7 @@
   "solution": {
     "name": "contact-filtering-web-part-client-side-solution",
     "id": "4e4e10bb-8d1a-41e4-a6d4-99bba11d9cfd",
-    "version": "1.0.0.0",
+    "version": "1.0.0.2",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
@@ -16,10 +16,10 @@
     },
     "metadata": {
       "shortDescription": {
-        "default": "ContactFilteringWebPart description"
+        "default": "Filtering & Card display of a contact list"
       },
       "longDescription": {
-        "default": "ContactFilteringWebPart description"
+        "default": "Allows for advanced filtering and display of contacts from Contacts list"
       },
       "screenshotPaths": [],
       "videoUrl": "",

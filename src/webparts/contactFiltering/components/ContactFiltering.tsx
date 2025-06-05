@@ -6,7 +6,7 @@ import { TextField } from '@fluentui/react/lib/TextField';
 import { PrimaryButton } from '@fluentui/react/lib/Button';
 import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
 
-import { IContact } from '../models/IContact';
+import { IContact } from '../models/IContact'
 import ContactCard from './ContactCard';
 
 
@@ -69,7 +69,8 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
         'Title',
         'FirstName',
         'LastName',
-        'Department'
+        'Department',
+        'Image'
       );
 
       if (filterQuery && filterQuery.length > 0) {
@@ -80,7 +81,6 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
 
       console.log("Fetched contacts(filter: ", filterQuery, "): ", items);
       this.setState({ contacts: items, isLoading: false });
-
     } catch (error) {
       console.error('Error fetching contacts:', error);
       this.setState({ isLoading: false });
@@ -171,10 +171,6 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
             className={styles.filterControl} //optional for styling
           />
         </div>
-        <div className={styles.filtersContainer}>
-          <p>Text search: {this.state.searchText}</p>
-          <p>Department filter: {this.state.selectedDepartment}</p>
-        </div>
         <div className={styles.actionsContainer}>
           <PrimaryButton
             text="Apply Filters"
@@ -195,7 +191,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
               <p>Fetched {contacts.length} contacts from ContactFilteringTest.</p>
               <div className={styles.cardsGridContainer}>
                 {contacts.map((contact: IContact) => (
-                  <ContactCard key={contact.Id} contact={contact} />
+                  <ContactCard key={contact.Id} contact={contact} webAbsoluteUrl={this.props.webAbsoluteUrl}/>
                 ))}
               </div>
             </>

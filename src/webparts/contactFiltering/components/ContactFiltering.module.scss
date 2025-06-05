@@ -32,7 +32,7 @@
   margin: 8px;
   background-color: #ffffff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  width: calc(20% - 16px); /* Example: for 5 cards per row, considering margin */
+  width: calc(30% - 16px); /* Example: for 5 cards per row, considering margin */
   min-width: 180px; /* Minimum width for a card */
   box-sizing: border-box; /* Include padding and border in the element's total width and height */
 
@@ -75,4 +75,15 @@
   display: flex;
   flex-wrap: wrap; // Allow cards to wrap to the next line
   margin: -8px; /* Negative margin to counteract card margins for edge alignment */
+}
+
+.contactImage {
+  width: 80px; // Or 100% to fill a container
+  height: 80px;
+  border-radius: 50%; // Makes it circular
+  object-fit: cover;  // Scales image nicely
+  margin-bottom: 10px;
+  display: block;     // To allow margin auto if you want to center it
+  margin-left: auto;
+  margin-right: auto;
 }
