@@ -34,7 +34,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
   }
 
 
-  private _applyFilters = (): void => {
+  private _applyFilters = async (): Promise<void> => {
     console.log("Applying filters...");
     const { searchText, selectedDepartment } = this.state;
     const filterParts: string[] = [];
@@ -56,11 +56,13 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
     }
 
     console.log("Applying filter: ", combinedFilter);
-    void this._fetchContacts(combinedFilter);
+    const filteredContacts: IContact[] = await this._fetchContacts(combinedFilter);
+
+    this.setState({ contacts: filteredContacts})
   };
   
 
-  private async _fetchContacts(filterQuery?: string): Promise<void> {
+  private async _fetchContacts(filterQuery?: string): Promise<IContact[]> {
     this.setState({ isLoading: true });
 
     try {
@@ -70,7 +72,9 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
         'FirstName',
         'LastName',
         'Department',
-        'Image'
+        'Image',
+        'PhoneNumber',
+        'Email'
       );
 
       if (filterQuery && filterQuery.length > 0) {
@@ -80,15 +84,17 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
       const items: IContact[] = await itemsQuery();
 
       console.log("Fetched contacts(filter: ", filterQuery, "): ", items);
-      this.setState({ contacts: items, isLoading: false });
+      this.setState({ isLoading: false });
+      return items;
     } catch (error) {
       console.error('Error fetching contacts:', error);
       this.setState({ isLoading: false });
+      return [];
     }
   }
 
 
-  private async _fetchDepartmentChoices(): Promise<void> {
+  private async _fetchDepartmentChoices(): Promise<IDropdownOption[]> {
     this.setState({ isLoadingDepartments: true });
 
     try {
@@ -103,15 +109,17 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
           options.push({ key: choice, text: choice });
         });
         this.setState({ departmentOptions: options, isLoadingDepartments: false });
-        console.log("Fetched department options: ", options);
+        return options;
       } else {
         this.setState({ departmentOptions: [], isLoadingDepartments: false });
         console.log("Department field not found or no choices available.");
+        return [];
       }
 
     } catch (error) {
       this.setState({ isLoadingDepartments: false });
       console.error('Error fetching department choices:', error);
+      return [];
     }
   }
 
@@ -130,22 +138,25 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
   }
 
 
-  private _onClearFilterClick = (): void => {
+  private _onClearFilterClick = async (): Promise<void> => {
     this.setState({ 
     searchText: "", 
     selectedDepartment: "",
-  }, () => {
+  }, async () => {
     // Call _fetchContacts in the setState callback to ensure state is updated first
-    void this._fetchContacts(); // Fetch all items (no filter string passed)
+    const allContacts: IContact[] = await this._fetchContacts();
+    this.setState({ contacts: allContacts}); // Fetch all items (no filter string passed)
   });
 
   }
 
 
-  public componentDidMount(): void {
+  public async componentDidMount(): Promise<void> {
     console.log("Component did mount")
-    void this._fetchContacts();
-    void this._fetchDepartmentChoices();
+    const allContacts: IContact[] = await this._fetchContacts();
+    const allDepartments: IDropdownOption[] = await this._fetchDepartmentChoices();
+
+    this.setState({ contacts: allContacts, departmentOptions: allDepartments });
   }
 
 
@@ -188,8 +199,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
             <p>Loading contacts...</p>
           ) : (
             <>
-              <p>Fetched {contacts.length} contacts from ContactFilteringTest.</p>
-              <div className={styles.cardsGridContainer}>
+              <div className={styles.cardContainer}>
                 {contacts.map((contact: IContact) => (
                   <ContactCard key={contact.Id} contact={contact} webAbsoluteUrl={this.props.webAbsoluteUrl}/>
                 ))}

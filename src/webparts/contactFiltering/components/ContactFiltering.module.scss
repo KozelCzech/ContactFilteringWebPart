@@ -25,65 +25,70 @@
 }
 
 
+//#region ContactCard
+.cardContainer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+
+  :hover {
+    background-color: "[theme: neutralQuaternaryAlt, default: #f5f5f5]";
+    transition: 0.3s;
+  }
+}
+
+
 .contactCard {
-  border: 1px solid #e0e0e0;
+  border: none;
   border-radius: 4px;
   padding: 15px;
   margin: 8px;
   background-color: #ffffff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  width: calc(30% - 16px); /* Example: for 5 cards per row, considering margin */
+  
+
+  width: calc(45% - 1rem); /* Example: for 5 cards per row, considering margin */
   min-width: 180px; /* Minimum width for a card */
-  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+
+  display: flex;
+  flex-direction: row;
 
   h3 {
     margin-top: 0;
-    margin-bottom: 8px;
-    font-size: 1.0em;
-    color: #333;
+    margin-bottom: 0.2rem;
+    font-size: 1.0rem;
+    color: "[theme: themePrimary, default: #000000]";
   }
 
   p {
-    margin: 4px 0;
-    font-size: 0.9em;
-    color: #555;
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+    color: "[theme: black, default: #000000]";
   }
-}
+  
 
-.cardHeader {
-  margin-bottom: 10px;
-}
+  .contactInfo {
+    padding-left: 0.5rem;
+  }
 
-.cardTitle { // For the list item's 'Title' field if shown
-  font-size: 0.8em;
-  font-style: italic;
-  color: #777;
-}
+  .subInfo {
+    p {
+      color: "[theme: themePrimary, default: #000000]";
+      font-size: 0.8rem;
+    }
+  }
 
-.cardBody {
-  font-size: 0.9rem;
-  color: #333;
-}
 
-.cardFooter {
-  margin-top: 10px;
-  font-size: 0.8em;
-  color: #777;
-}
+  
+  .contactImage {
+    width: 5rem; // Or 100% to fill a container
+    height: 5rem;
+    border-radius: 50%; // Makes it circular
+    object-fit: cover;  // Scales image nicely
+    margin-bottom: 10px;
+    display: block;     // To allow margin auto if you want to center it
+    margin-left: auto;
+    margin-right: auto;
+  }
+//#endregion
 
-.cardsGridContainer {
-  display: flex;
-  flex-wrap: wrap; // Allow cards to wrap to the next line
-  margin: -8px; /* Negative margin to counteract card margins for edge alignment */
-}
-
-.contactImage {
-  width: 80px; // Or 100% to fill a container
-  height: 80px;
-  border-radius: 50%; // Makes it circular
-  object-fit: cover;  // Scales image nicely
-  margin-bottom: 10px;
-  display: block;     // To allow margin auto if you want to center it
-  margin-left: auto;
-  margin-right: auto;
 }

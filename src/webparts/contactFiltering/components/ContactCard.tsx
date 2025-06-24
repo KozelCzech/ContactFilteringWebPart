@@ -13,18 +13,19 @@ const ContactCard: React.FC<IContactCardProps> = (props) => {
 
   return (
     <div className={styles.contactCard}>
-        <div className={styles.cardHeader}>
-            <h3>{contact.FirstName || ""}  {contact.LastName || ""}</h3>
-        </div>
-        <div className={styles.cardBody}>
+        <div>
             <img 
                 src={attachmentUrl}
                 className={styles.contactImage}
             />
-            {contact.Department && <p><strong>Department:</strong> {contact.Department}</p>}
         </div>
-        <div className={styles.cardFooter}>
-            <p>ID: {contact.Id}</p>
+        <div className={styles.contactInfo}>
+            <h3>{contact.FirstName || ""}  {contact.LastName || ""}</h3>
+            {contact.Department && <p>{contact.Department}</p>}
+            <div className={styles.subInfo}>
+                {contact.PhoneNumber && <p>{contact.PhoneNumber}</p>}
+                {contact.Email && <p>{contact.Email}</p>}
+            </div>
         </div>
     </div>
     
