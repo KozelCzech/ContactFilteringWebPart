@@ -8,12 +8,15 @@ import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
 
 import { IContact } from '../models/IContact'
 import ContactCard from './ContactCard';
+import { Spinner } from '@fluentui/react/lib/Spinner';
 
 
 export interface IContactFilteringState {
   contacts: IContact[];
   isLoading: boolean;
-  searchText: string;
+  nameText: string;
+  phoneNumberText: string;
+  emailText: string;
   departmentOptions: IDropdownOption[];
   selectedDepartment?: string | number;
   isLoadingDepartments: boolean;
@@ -26,7 +29,9 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
     this.state = {
       contacts: [],
       isLoading: true,
-      searchText: "",
+      nameText: "",
+      phoneNumberText: "",
+      emailText: "",
       departmentOptions: [],
       selectedDepartment: undefined,
       isLoadingDepartments: false,
@@ -36,18 +41,28 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
 
   private _applyFilters = async (): Promise<void> => {
     console.log("Applying filters...");
-    const { searchText, selectedDepartment } = this.state;
+    const { nameText: nameText, phoneNumberText: phoneNumberText, emailText: emailText, selectedDepartment } = this.state;
     const filterParts: string[] = [];
 
-    const escapedSearchText = searchText.replace(/'/g, "''");
-    if (searchText && searchText.trim() !== "") {
+    const escapedNameText = nameText.replace(/'/g, "''");
+    if (nameText && nameText.trim() !== "") {
       filterParts.push(
-        `(substringof('${escapedSearchText}', FirstName) or substringof('${escapedSearchText}', LastName) or substringof('${escapedSearchText}', Title))`
+        `(substringof('${escapedNameText}', FirstName) or substringof('${escapedNameText}', LastName) or substringof('${escapedNameText}', Title))`
       );
     }
 
     if (selectedDepartment && selectedDepartment !== "") {
       filterParts.push(`(Department eq '${selectedDepartment}')`);
+    }
+
+    const escapedPhoneNumberText = phoneNumberText.replace(/'/g, "''");
+    if (phoneNumberText && phoneNumberText.trim() !== "") {
+      filterParts.push(`(substringof('${escapedPhoneNumberText}', PhoneNumber))`);
+    }
+
+    const escapedEmailText = emailText.replace(/'/g, "''");
+    if (emailText && emailText.trim() !== "") {
+      filterParts.push(`(substringof('${escapedEmailText}', Email))`);
     }
 
     let combinedFilter = "";
@@ -124,8 +139,16 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
   }
 
 
-  private _onSearchTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
-    this.setState({ searchText: newValue || "" });
+  private _onNameTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
+    this.setState({ nameText: newValue || "" });
+  }
+
+  private _onPhoneNumberTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
+    this.setState({ phoneNumberText: newValue || "" });
+  }
+
+  private _onEmailTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
+    this.setState({ emailText: newValue || "" });
   }
 
 
@@ -140,7 +163,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
 
   private _onClearFilterClick = async (): Promise<void> => {
     this.setState({ 
-    searchText: "", 
+    nameText: "", 
     selectedDepartment: "",
   }, async () => {
     // Call _fetchContacts in the setState callback to ensure state is updated first
@@ -167,19 +190,30 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
       <section className={styles.contactFiltering}> {/* Ensure class name matches your .module.scss */}
         <div className={styles.filtersContainer}>
           <TextField
-            label="Search Contacts"
-            placeholder="Enter name, email, or department..."
-            value={this.state.searchText}
-            onChange={this._onSearchTextChange}
+            label="Name:"
+            placeholder="Enter first or last name..."
+            value={this.state.nameText}
+            onChange={this._onNameTextChange}
           />
           <Dropdown 
-            label="Filter by Department"
+            label="Department:"
             placeholder="Select a Department"
             options={this.state.departmentOptions}
             selectedKey={this.state.selectedDepartment}
             onChange={this._onDepartmentChange}
             disabled={this.state.isLoadingDepartments}
-            className={styles.filterControl} //optional for styling
+          />
+            <TextField
+              label="Phone number:"
+              placeholder="Enter phone number..."
+              value={this.state.phoneNumberText}
+              onChange={this._onPhoneNumberTextChange}
+            />
+          <TextField
+            label="Email:"
+            placeholder="Enter email..."
+            value={this.state.emailText}
+            onChange={this._onEmailTextChange}
           />
         </div>
         <div className={styles.actionsContainer}>
@@ -196,7 +230,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
 
         <div className={styles.resultsContainer}>
           {isLoading ? (
-            <p>Loading contacts...</p>
+            <Spinner label="I am definitely loading..." />
           ) : (
             <>
               <div className={styles.cardContainer}>
