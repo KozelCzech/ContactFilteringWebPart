@@ -9,6 +9,8 @@ import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
 import { IContact } from '../models/IContact'
 import ContactCard from './ContactCard';
 import { Spinner } from '@fluentui/react/lib/Spinner';
+import Modal from './Modal';
+import ContactPage from './ContactPage';
 
 
 export interface IContactFilteringState {
@@ -20,6 +22,7 @@ export interface IContactFilteringState {
   departmentOptions: IDropdownOption[];
   selectedDepartment?: string | number;
   isLoadingDepartments: boolean;
+  selectedContact?: IContact | undefined;
 }
 
 export default class ContactFiltering extends React.Component<IContactFilteringProps, IContactFilteringState> {
@@ -35,6 +38,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
       departmentOptions: [],
       selectedDepartment: undefined,
       isLoadingDepartments: false,
+      selectedContact: undefined
     };
   }
 
@@ -138,7 +142,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
     }
   }
 
-
+//#region UI Handlers
   private _onNameTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
     this.setState({ nameText: newValue || "" });
   }
@@ -150,7 +154,6 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
   private _onEmailTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
     this.setState({ emailText: newValue || "" });
   }
-
 
   private _onDepartmentChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption, index?: number): void => {
     if (option) {
@@ -174,6 +177,18 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
   }
 
 
+  private _handleContactCardClick = (contact: IContact): void => {
+    this.setState({ selectedContact: contact });
+  }
+
+
+  private _handleCloseModal = (): void => {
+    this.setState({ selectedContact: undefined });
+  }
+
+//#endregion
+  
+
   public async componentDidMount(): Promise<void> {
     console.log("Component did mount")
     const allContacts: IContact[] = await this._fetchContacts();
@@ -187,8 +202,8 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
     const { isLoading, contacts } = this.state;
 
     return (
-      <section className={styles.contactFiltering}> {/* Ensure class name matches your .module.scss */}
-        <div className={styles.filtersContainer}>
+      <div className={styles.contactFiltering}> {/* Ensure class name matches your .module.scss */}
+        <div className={styles.filtersContainer}> {/* Filter inputs */}
           <TextField
             label="Name:"
             placeholder="Enter first or last name..."
@@ -216,7 +231,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
             onChange={this._onEmailTextChange}
           />
         </div>
-        <div className={styles.actionsContainer}>
+        <div className={styles.actionsContainer}> {/* Buttons */}
           <PrimaryButton
             text="Apply Filters"
             onClick={this._applyFilters}
@@ -235,13 +250,18 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
             <>
               <div className={styles.cardContainer}>
                 {contacts.map((contact: IContact) => (
-                  <ContactCard key={contact.Id} contact={contact} webAbsoluteUrl={this.props.webAbsoluteUrl}/>
+                  <ContactCard key={contact.Id} contact={contact} webAbsoluteUrl={this.props.webAbsoluteUrl} onClick={() => this._handleContactCardClick(contact)}/>
                 ))}
               </div>
             </>
           )}
         </div>
-      </section>
+        <Modal isOpen={!!this.state.selectedContact} onClose={this._handleCloseModal}> 
+          { this.state.selectedContact && (
+            <ContactPage contact={this.state.selectedContact} webAbsoluteUrl={this.props.webAbsoluteUrl} />
+          )}
+        </Modal>
+      </div>
     );
   }
 }
