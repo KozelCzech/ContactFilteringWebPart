@@ -8,15 +8,21 @@ import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
 
 import { IContact } from '../models/IContact'
 import ContactCard from './ContactCard';
+import { Spinner } from '@fluentui/react/lib/Spinner';
+import Modal from './Modal';
+import ContactPage from './ContactPage';
 
 
 export interface IContactFilteringState {
   contacts: IContact[];
   isLoading: boolean;
-  searchText: string;
+  nameText: string;
+  phoneNumberText: string;
+  emailText: string;
   departmentOptions: IDropdownOption[];
   selectedDepartment?: string | number;
   isLoadingDepartments: boolean;
+  selectedContact?: IContact | undefined;
 }
 
 export default class ContactFiltering extends React.Component<IContactFilteringProps, IContactFilteringState> {
@@ -26,28 +32,41 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
     this.state = {
       contacts: [],
       isLoading: true,
-      searchText: "",
+      nameText: "",
+      phoneNumberText: "",
+      emailText: "",
       departmentOptions: [],
       selectedDepartment: undefined,
       isLoadingDepartments: false,
+      selectedContact: undefined
     };
   }
 
 
-  private _applyFilters = (): void => {
+  private _applyFilters = async (): Promise<void> => {
     console.log("Applying filters...");
-    const { searchText, selectedDepartment } = this.state;
+    const { nameText: nameText, phoneNumberText: phoneNumberText, emailText: emailText, selectedDepartment } = this.state;
     const filterParts: string[] = [];
 
-    const escapedSearchText = searchText.replace(/'/g, "''");
-    if (searchText && searchText.trim() !== "") {
+    const escapedNameText = nameText.replace(/'/g, "''");
+    if (nameText && nameText.trim() !== "") {
       filterParts.push(
-        `(substringof('${escapedSearchText}', FirstName) or substringof('${escapedSearchText}', LastName) or substringof('${escapedSearchText}', Title))`
+        `(substringof('${escapedNameText}', FirstName) or substringof('${escapedNameText}', LastName) or substringof('${escapedNameText}', Title))`
       );
     }
 
     if (selectedDepartment && selectedDepartment !== "") {
       filterParts.push(`(Department eq '${selectedDepartment}')`);
+    }
+
+    const escapedPhoneNumberText = phoneNumberText.replace(/'/g, "''");
+    if (phoneNumberText && phoneNumberText.trim() !== "") {
+      filterParts.push(`(substringof('${escapedPhoneNumberText}', PhoneNumber))`);
+    }
+
+    const escapedEmailText = emailText.replace(/'/g, "''");
+    if (emailText && emailText.trim() !== "") {
+      filterParts.push(`(substringof('${escapedEmailText}', Email))`);
     }
 
     let combinedFilter = "";
@@ -56,11 +75,13 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
     }
 
     console.log("Applying filter: ", combinedFilter);
-    void this._fetchContacts(combinedFilter);
+    const filteredContacts: IContact[] = await this._fetchContacts(combinedFilter);
+
+    this.setState({ contacts: filteredContacts})
   };
   
 
-  private async _fetchContacts(filterQuery?: string): Promise<void> {
+  private async _fetchContacts(filterQuery?: string): Promise<IContact[]> {
     this.setState({ isLoading: true });
 
     try {
@@ -70,7 +91,9 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
         'FirstName',
         'LastName',
         'Department',
-        'Image'
+        'Image',
+        'PhoneNumber',
+        'Email'
       );
 
       if (filterQuery && filterQuery.length > 0) {
@@ -80,15 +103,17 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
       const items: IContact[] = await itemsQuery();
 
       console.log("Fetched contacts(filter: ", filterQuery, "): ", items);
-      this.setState({ contacts: items, isLoading: false });
+      this.setState({ isLoading: false });
+      return items;
     } catch (error) {
       console.error('Error fetching contacts:', error);
       this.setState({ isLoading: false });
+      return [];
     }
   }
 
 
-  private async _fetchDepartmentChoices(): Promise<void> {
+  private async _fetchDepartmentChoices(): Promise<IDropdownOption[]> {
     this.setState({ isLoadingDepartments: true });
 
     try {
@@ -103,23 +128,32 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
           options.push({ key: choice, text: choice });
         });
         this.setState({ departmentOptions: options, isLoadingDepartments: false });
-        console.log("Fetched department options: ", options);
+        return options;
       } else {
         this.setState({ departmentOptions: [], isLoadingDepartments: false });
         console.log("Department field not found or no choices available.");
+        return [];
       }
 
     } catch (error) {
       this.setState({ isLoadingDepartments: false });
       console.error('Error fetching department choices:', error);
+      return [];
     }
   }
 
-
-  private _onSearchTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
-    this.setState({ searchText: newValue || "" });
+//#region UI Handlers
+  private _onNameTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
+    this.setState({ nameText: newValue || "" });
   }
 
+  private _onPhoneNumberTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
+    this.setState({ phoneNumberText: newValue || "" });
+  }
+
+  private _onEmailTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
+    this.setState({ emailText: newValue || "" });
+  }
 
   private _onDepartmentChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption, index?: number): void => {
     if (option) {
@@ -130,22 +164,37 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
   }
 
 
-  private _onClearFilterClick = (): void => {
+  private _onClearFilterClick = async (): Promise<void> => {
     this.setState({ 
-    searchText: "", 
+    nameText: "", 
     selectedDepartment: "",
-  }, () => {
+  }, async () => {
     // Call _fetchContacts in the setState callback to ensure state is updated first
-    void this._fetchContacts(); // Fetch all items (no filter string passed)
+    const allContacts: IContact[] = await this._fetchContacts();
+    this.setState({ contacts: allContacts}); // Fetch all items (no filter string passed)
   });
 
   }
 
 
-  public componentDidMount(): void {
+  private _handleContactCardClick = (contact: IContact): void => {
+    this.setState({ selectedContact: contact });
+  }
+
+
+  private _handleCloseModal = (): void => {
+    this.setState({ selectedContact: undefined });
+  }
+
+//#endregion
+  
+
+  public async componentDidMount(): Promise<void> {
     console.log("Component did mount")
-    void this._fetchContacts();
-    void this._fetchDepartmentChoices();
+    const allContacts: IContact[] = await this._fetchContacts();
+    const allDepartments: IDropdownOption[] = await this._fetchDepartmentChoices();
+
+    this.setState({ contacts: allContacts, departmentOptions: allDepartments });
   }
 
 
@@ -153,25 +202,36 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
     const { isLoading, contacts } = this.state;
 
     return (
-      <section className={styles.contactFiltering}> {/* Ensure class name matches your .module.scss */}
-        <div className={styles.filtersContainer}>
+      <div className={styles.contactFiltering}> {/* Ensure class name matches your .module.scss */}
+        <div className={styles.filtersContainer}> {/* Filter inputs */}
           <TextField
-            label="Search Contacts"
-            placeholder="Enter name, email, or department..."
-            value={this.state.searchText}
-            onChange={this._onSearchTextChange}
+            label="Name:"
+            placeholder="Enter first or last name..."
+            value={this.state.nameText}
+            onChange={this._onNameTextChange}
           />
           <Dropdown 
-            label="Filter by Department"
+            label="Department:"
             placeholder="Select a Department"
             options={this.state.departmentOptions}
             selectedKey={this.state.selectedDepartment}
             onChange={this._onDepartmentChange}
             disabled={this.state.isLoadingDepartments}
-            className={styles.filterControl} //optional for styling
+          />
+            <TextField
+              label="Phone number:"
+              placeholder="Enter phone number..."
+              value={this.state.phoneNumberText}
+              onChange={this._onPhoneNumberTextChange}
+            />
+          <TextField
+            label="Email:"
+            placeholder="Enter email..."
+            value={this.state.emailText}
+            onChange={this._onEmailTextChange}
           />
         </div>
-        <div className={styles.actionsContainer}>
+        <div className={styles.actionsContainer}> {/* Buttons */}
           <PrimaryButton
             text="Apply Filters"
             onClick={this._applyFilters}
@@ -185,19 +245,23 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
 
         <div className={styles.resultsContainer}>
           {isLoading ? (
-            <p>Loading contacts...</p>
+            <Spinner label="I am definitely loading..." />
           ) : (
             <>
-              <p>Fetched {contacts.length} contacts from ContactFilteringTest.</p>
-              <div className={styles.cardsGridContainer}>
+              <div className={styles.cardContainer}>
                 {contacts.map((contact: IContact) => (
-                  <ContactCard key={contact.Id} contact={contact} webAbsoluteUrl={this.props.webAbsoluteUrl}/>
+                  <ContactCard key={contact.Id} contact={contact} webAbsoluteUrl={this.props.webAbsoluteUrl} onClick={() => this._handleContactCardClick(contact)}/>
                 ))}
               </div>
             </>
           )}
         </div>
-      </section>
+        <Modal isOpen={!!this.state.selectedContact} onClose={this._handleCloseModal}> 
+          { this.state.selectedContact && (
+            <ContactPage contact={this.state.selectedContact} webAbsoluteUrl={this.props.webAbsoluteUrl} />
+          )}
+        </Modal>
+      </div>
     );
   }
 }

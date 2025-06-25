@@ -2,14 +2,15 @@ import * as React from 'react';
 import styles from './ContactFiltering.module.scss'; // Your SCSS styles
 import { IContact } from '../models/IContact';
 
-export interface IContactCardProps{
+
+export interface IContactPageProps {
     contact: IContact;
     webAbsoluteUrl: string;
-    onClick: (event: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-const ContactCard: React.FC<IContactCardProps> = (props) => {
-    const { contact, webAbsoluteUrl, onClick } = props;
+
+const ContactPage: React.FC<IContactPageProps> = (props) => {
+    const { contact, webAbsoluteUrl } = props;
 
     const listName = "ContactFilteringTest";
     const attachmentId = contact.Id;
@@ -17,26 +18,17 @@ const ContactCard: React.FC<IContactCardProps> = (props) => {
     const attachmentUrl = `${webAbsoluteUrl}/Lists/${listName}/Attachments/${attachmentId}/${attachmentName}`;
 
 
-  return (
-    <div className={styles.contactCard} onClick={onClick}>
+    return (
         <div>
+            <div>
             <img 
                 src={attachmentUrl}
                 className={styles.contactImage}
             />
         </div>
-        <div className={styles.contactInfo}>
             <h3>{contact.FirstName || ""}  {contact.LastName || ""}</h3>
-            {contact.Department && <p>{contact.Department}</p>}
-            <div className={styles.subInfo}>
-                {contact.PhoneNumber && <p>{contact.PhoneNumber}</p>}
-                {contact.Email && <p>{contact.Email}</p>}
-            </div>
         </div>
-    </div>
-    
+    );
+}
 
-  );
-};
-
-export default ContactCard;
+export default ContactPage;
