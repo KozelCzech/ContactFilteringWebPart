@@ -15,6 +15,7 @@ import { spfi, SPFI, SPFx } from '@pnp/sp';
 import '@pnp/sp/webs';
 import '@pnp/sp/lists';
 import '@pnp/sp/items';
+import '@pnp/sp/site-users/web';
 import '@pnp/sp/fields';
 
 export interface IContactFilteringWebPartProps {

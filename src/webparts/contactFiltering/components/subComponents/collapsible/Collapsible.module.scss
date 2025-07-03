@@ -1,0 +1,48 @@
+.collapsible {
+    background-color: "[theme: neutralLighterAlt, default: #f9f9f9]";
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+.toggleButton {
+  background-color: "[theme: neutralLight, default: #f6f6f6]";
+  color: #444;
+  cursor: pointer;
+  padding: 18px;
+  width: 100%;
+  border: none;
+  text-align: left;
+  outline: none;
+  font-size: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s ease-out;
+
+  &:hover {
+    background-color: #ddd;
+  }
+}
+
+.icon {
+  transition: transform 0.3s ease-in-out;
+}
+
+.icon.open {
+  transform: rotate(-180deg);
+}
+
+.content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease-in-out;
+}
+
+.contentOpen {
+  max-height: 500px; /* Set a max-height large enough for your content */
+}
+
+.contentInner {
+    padding: 18px;
+    border-top: 1px solid #e0e0e0;
+}

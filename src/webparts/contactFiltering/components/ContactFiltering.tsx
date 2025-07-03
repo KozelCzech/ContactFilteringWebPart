@@ -11,7 +11,8 @@ import ContactCard from './ContactCard';
 import { Spinner } from '@fluentui/react/lib/Spinner';
 import Modal from './Modal';
 import ContactPage from './ContactPage';
-
+import TagHolder from './tagFolder/TagHolder';
+import Collapsible from './subComponents/collapsible/Collapsible';
 
 export interface IContactFilteringState {
   contacts: IContact[];
@@ -23,6 +24,7 @@ export interface IContactFilteringState {
   selectedDepartment?: string | number;
   isLoadingDepartments: boolean;
   selectedContact?: IContact | undefined;
+  isTagCreator: boolean;
 }
 
 export default class ContactFiltering extends React.Component<IContactFilteringProps, IContactFilteringState> {
@@ -38,7 +40,8 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
       departmentOptions: [],
       selectedDepartment: undefined,
       isLoadingDepartments: false,
-      selectedContact: undefined
+      selectedContact: undefined,
+      isTagCreator: false
     };
   }
 
@@ -102,7 +105,6 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
 
       const items: IContact[] = await itemsQuery();
 
-      console.log("Fetched contacts(filter: ", filterQuery, "): ", items);
       this.setState({ isLoading: false });
       return items;
     } catch (error) {
@@ -141,6 +143,21 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
       return [];
     }
   }
+
+//#region Tag methods
+  private async _isUserInGroup(groupName: string): Promise<boolean> {
+    try {
+      const response = await this.props.sp.web.currentUser.groups.filter(`LoginName eq '${groupName}'`)();
+
+      return response.length > 0;
+    } catch (error) {
+      console.error('Error checking group membership:', error);
+      return false;
+    }
+  }
+
+
+//#endregion
 
 //#region UI Handlers
   private _onNameTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
@@ -194,7 +211,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
     const allContacts: IContact[] = await this._fetchContacts();
     const allDepartments: IDropdownOption[] = await this._fetchDepartmentChoices();
 
-    this.setState({ contacts: allContacts, departmentOptions: allDepartments });
+    this.setState({ contacts: allContacts, departmentOptions: allDepartments, isTagCreator: await this._isUserInGroup("TagCreators") });
   }
 
 
@@ -261,6 +278,13 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
             <ContactPage contact={this.state.selectedContact} webAbsoluteUrl={this.props.webAbsoluteUrl} />
           )}
         </Modal>
+        {
+          this.state.isTagCreator && (
+            <Collapsible title="Tags">
+              <TagHolder />
+            </Collapsible>
+          )
+        }
       </div>
     );
   }
