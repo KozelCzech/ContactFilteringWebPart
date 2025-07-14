@@ -1,6 +1,6 @@
 import * as React from 'react';
-import styles from './ContactFiltering.module.scss'; // Your SCSS styles
-import { IContact } from '../models/IContact';
+import styles from '../ContactFiltering.module.scss'; // Your SCSS styles
+import { IContact } from '../../models/IContact';
 
 
 export interface IContactPageProps {
@@ -21,7 +21,7 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
     return (
         <div>
             <div>
-            <img 
+            <img
                 src={attachmentUrl}
                 className={styles.contactImage}
             />

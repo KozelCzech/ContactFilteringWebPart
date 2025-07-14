@@ -1,5 +1,5 @@
 import * as React from 'react';
-import styles from './ContactFiltering.module.scss';
+import styles from './Modal.module.scss';
 
 export interface IModalProps {
     isOpen: boolean;

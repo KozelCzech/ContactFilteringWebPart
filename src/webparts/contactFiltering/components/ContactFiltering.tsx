@@ -5,13 +5,15 @@ import type { IContactFilteringProps } from './IContactFilteringProps';
 import { TextField } from '@fluentui/react/lib/TextField';
 import { PrimaryButton } from '@fluentui/react/lib/Button';
 import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
+import { Spinner } from '@fluentui/react/lib/Spinner';
 
 import { IContact } from '../models/IContact'
 import ContactCard from './ContactCard';
-import { Spinner } from '@fluentui/react/lib/Spinner';
-import Modal from './Modal';
-import ContactPage from './ContactPage';
+import ContactPage from './contactPage/ContactPage';
+
 import TagHolder from './tagFolder/TagHolder';
+
+import Modal from './subComponents/modal/Modal';
 import Collapsible from './subComponents/collapsible/Collapsible';
 
 export interface IContactFilteringState {
@@ -281,7 +283,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
         {
           this.state.isTagCreator && (
             <Collapsible title="Tags">
-              <TagHolder />
+              <TagHolder sp={this.props.sp}/>
             </Collapsible>
           )
         }
