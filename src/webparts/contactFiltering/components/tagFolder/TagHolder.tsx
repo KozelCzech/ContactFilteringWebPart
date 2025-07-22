@@ -43,16 +43,23 @@ const TagHolder: React.FC<ITagHolderProps> = (props) => {
     }
 
 
-    const fetchTags = async (): Promise<void> => {
+    const fetchTags = async (filterText?: string): Promise<void> => {
         setIsLoading(true);
         try {
-            const tagQuery = props.sp.web.lists.getByTitle(listName).items.select(
+            let tagQuery = props.sp.web.lists.getByTitle(listName).items.select(
                 "Id",
                 "Title",
                 "TagName",
                 "Comment",
                 "tagColor"
-            )
+            );
+
+            if (filterText && filterText.trim() !== "") {
+                const escapedFilterText = filterText.replace(/'/g, "''");
+                const filterQueryString = `substringof('${escapedFilterText}', TagName)`;
+                tagQuery = tagQuery.filter(filterQueryString);
+            }
+
             const tags: ITag[] = await tagQuery();
             setTags(tags);
         } catch (error) {
@@ -115,11 +122,12 @@ const TagHolder: React.FC<ITagHolderProps> = (props) => {
     //#region Search
         const onFilteredNameChange = (ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
             setFilterName(newValue || "");
-        }
+        };
 
-
-
-
+        const handleSearch = (event: React.FormEvent): void => {
+            event.preventDefault();
+            fetchTags(filterName).catch(console.error);
+        };
     //#endregion
 
 
@@ -135,9 +143,14 @@ const TagHolder: React.FC<ITagHolderProps> = (props) => {
                 <div>
                     <div className={styles.tagControlsContainer}>
                         <div className={styles.searchForm}>
-                            <button title="Search Tags" type="submit" className={styles.searchButton}><SearchFilled /></button>
-                            <TextField placeholder="Search tags" onChange={onFilteredNameChange}/> 
-                            <p>{filterName}</p>
+                            <button 
+                            title="Search Tags"    
+                            type="submit" 
+                            className={styles.searchButton} 
+                            onClick={handleSearch}>
+                                <SearchFilled />
+                            </button>
+                            <TextField placeholder="Search tags" onChange={onFilteredNameChange} value={filterName}/> 
                         </div>
                         <button className={styles.addButton} title="Add Tag" onClick={() => changeEditTag(newTag)}><AddCircleFilled /></button>
                     </div>
