@@ -27,3 +27,10 @@ export function getContrastColor(hexColor: string | undefined): string {
 
     return luminance < 128 ? '#FFFFFF' : '#000000';
 }
+
+
+export function isValidColor(color: string): boolean {
+    const regex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+    return regex.test(color);
+
+}

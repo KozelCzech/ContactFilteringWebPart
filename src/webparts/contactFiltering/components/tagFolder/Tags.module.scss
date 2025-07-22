@@ -1,19 +1,32 @@
+.tagsContainer {
+    height: 500px;
+    overflow-y: auto;
+}
+
+
 .tag {
-    display: flex;
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: 25fr 60fr 15fr;
+    gap: 0.5rem;
+
     align-items: center;
-    justify-content: left;
-    
+
     border-bottom: 0.1rem solid #8585855d;
+    box-sizing: border-box;
+
+    &:last-child {
+        border-bottom: none;
+    }
+
 
     .tagNameHolder {
-        width: 25%;
         
         .tagName {
             font-size: 0.9rem;
             line-height: 1;
 
             border-radius: 2em;
+            
             width: max-content;
             max-width: 100%;
             padding: 0.2rem 0.375rem;
@@ -30,12 +43,10 @@
 
     .tagComment {
         font-size: 0.8rem;
-        width: 60%;
     }
 
 
     .tagButton {
-        width: 15%;
         justify-content: right;
         display: flex;
         flex-direction: row;
@@ -45,8 +56,8 @@
 
         button {
             border-radius: 50%;
-            height: 1.5rem;
-            width: 1.5rem;
+            width: 1.8rem;    
+            height: 1.8rem;
 
             display: flex;
             align-items: center;
@@ -56,14 +67,46 @@
     }
 }
 
-.tagButtonHolder {
-    margin-top: 1rem;
+.tagControlsContainer {
 
     display: flex;
     flex-direction: row;
     align-items: center;
-    justify-content: right;
+    justify-content: space-between;
 
+    padding-bottom: 0.8rem;
+
+    border-bottom: solid 1px #8585855d;
+    box-sizing: border-box;
+
+    .searchForm {
+        display: grid;
+        grid-template-columns: 10fr 70fr;
+        gap: 0.5rem;
+        align-items: center;
+
+        .searchButton {
+            border-radius: 2rem;
+            width: 1.8rem;    
+            height: 1.8rem;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+    }
+
+    .addButton {
+        border-radius: 2rem;
+            width: 1.8rem;    
+            height: 1.8rem;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+    }
 }
 
 
@@ -72,6 +115,8 @@ button {
     color: "[theme: themeLighterAlt, default: #ffffff]";
     padding: 0.2rem 0.375rem;
     
+    font-size: 1.1rem;
+
     border-radius: 2rem;
     border: none;
 

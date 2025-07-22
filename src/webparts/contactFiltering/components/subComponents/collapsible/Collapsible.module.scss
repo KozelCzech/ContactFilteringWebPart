@@ -1,7 +1,8 @@
 .collapsible {
     background-color: "[theme: neutralLighterAlt, default: #f9f9f9]";
     border: 1px solid #e0e0e0;
-    border-radius: 4px;
+    border-radius: 0.25rem;
+    margin-top: 1rem;
 }
 
 .toggleButton {
@@ -39,7 +40,7 @@
 }
 
 .contentOpen {
-  max-height: 500px; /* Set a max-height large enough for your content */
+  max-height: 700px; /* Set a max-height large enough for your content */
 }
 
 .contentInner {
