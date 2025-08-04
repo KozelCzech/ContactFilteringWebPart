@@ -1,0 +1,41 @@
+.paginator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0.5rem 0;
+
+    button {
+        min-width: 2.5rem;
+        padding: 0.5rem;
+        border: 1px solid "[theme: neutralQuaternary, default: #d0d0d0]";
+        background-color: "[theme: white, default: #ffffff]";
+        color: "[theme: neutralPrimary, default: #323130]";
+        cursor: pointer;
+        border-radius: 2px;
+        font-size: 0.9rem;
+        transition: background-color 0.2s ease-in-out;
+
+        &:hover:not(:disabled) {
+            background-color: "[theme: neutralLighter, default: #f3f2f1]";
+        }
+
+        // Styles for the disabled "Previous" and "Next" buttons
+        &:disabled:not(.activePage) {
+            background-color: "[theme: neutralLighter, default: #f3f2f1]";
+            color: "[theme: neutralTertiary, default: #a19f9d]";
+            border-color: "[theme: neutralLighter, default: #f3f2f1]";
+            cursor: not-allowed;
+        }
+    }
+}
+
+// Styles for the active page button.
+// It has the `disabled` attribute, but we want it to look active.
+.activePage {
+    background-color: "[theme: themePrimary, default: #0078d4]";
+    color: "[theme: white, default: #ffffff]";
+    border-color: "[theme: themePrimary, default: #0078d4]";
+    cursor: default;
+}

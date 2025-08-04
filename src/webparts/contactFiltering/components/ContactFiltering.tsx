@@ -283,7 +283,7 @@ export default class ContactFiltering extends React.Component<IContactFilteringP
         {
           this.state.isTagCreator && (
             <Collapsible title="Tags">
-              <TagHolder sp={this.props.sp}/>
+              <TagHolder sp={this.props.sp} webUrl={this.props.webAbsoluteUrl}/>
             </Collapsible>
           )
         }
