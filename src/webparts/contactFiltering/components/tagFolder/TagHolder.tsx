@@ -157,34 +157,6 @@ const TagHolder: React.FC<ITagHolderProps> = (props) => {
     }
 
 
-    /*
-    const refreshCurrentPage = async (): Promise<void> => {
-        if (!state.currentPageQuery) {
-            await getFirstPage();
-            return;
-        }
-
-        setState(s => ({ ...s, isLoading: true }));
-        try {
-            const result: { results: ITag[], hasNext: boolean } = await state.currentPageQuery();
-            if (result.results.length === 0 && state.pageHistory.length > 0){
-                await getPreviousPage();
-            } else {
-                setState(s => ({
-                    ...s,
-                    tags: result.results,
-                    hasNext: result.hasNext,
-                    isLoading: false
-                }));
-            }
-        } catch (error) {
-            console.log("Error refreshing current page: ", error);
-            setState(s => ({ ...s, isLoading: false }));
-        }
-    }
-    */
-
-
     //#region Tag handling(create, delete, edit)
     const changeEditTag = async (tag: ITag): Promise<void> => {
         setState(s => ({ ...s, editTag: tag, isModalOpen: true}));
