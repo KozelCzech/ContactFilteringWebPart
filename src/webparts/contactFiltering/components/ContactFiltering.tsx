@@ -35,7 +35,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [pageUrls, setPageUrls] = useState<string[]>([]);
   const [currentPageNumber, setCurrentPageNumber] = useState<number>(0);
   const [hasNext, setHasNext] = useState<boolean>(false);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(4);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
 
   const createFilter = async(): Promise<void> => {
@@ -224,7 +224,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       await fetchDepartmentChoices();
       const tagCreatorStatus = await isUserInGroup("TagCreators");
       setIsTagCreator(tagCreatorStatus);
-      setItemsPerPage(4);
+      setItemsPerPage(10);
     };
 
     // eslint-disable-next-line no-void
