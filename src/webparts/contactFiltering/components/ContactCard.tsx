@@ -31,6 +31,7 @@ const ContactCard: React.FC<IContactCardProps> = (props) => {
             <div className={styles.subInfo}>
                 {contact.PhoneNumber && <p>{contact.PhoneNumber}</p>}
                 {contact.Email && <p>{contact.Email}</p>}
+                
             </div>
         </div>
     </div>

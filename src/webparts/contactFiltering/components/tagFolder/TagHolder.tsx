@@ -24,7 +24,7 @@ export interface ITag {
     Id: number;
     Title: string;
     TagName: string;
-    Comment: string;
+    Comment?: string;
     tagColor: string;
 }
 

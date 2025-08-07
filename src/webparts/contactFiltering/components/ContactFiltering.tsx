@@ -62,8 +62,10 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   const createFullQuery = async(): Promise<string> => {
       let itemsQuery = props.sp.web.lists.getByTitle('ContactFilteringTest').items.select(
-        'Id', 'Title', 'FirstName', 'LastName', 'Department', 'Image', 'PhoneNumber', 'Email'
-      );
+        'Id', 'Title', 'FirstName', 'LastName', 'Department', 'Image', 'PhoneNumber', 'Email', 
+        "Tags/Id",
+        "Tags/TagName",
+      ).expand("Tags");
       const filterQuery = activeFilter;
 
       if (filterQuery) {
@@ -88,6 +90,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
             const nextUrl = data.d.__next;
 
             setContacts(newItems);
+            console.log(newItems);
             setHasNext(!!nextUrl);
             setPageUrls(prevUrls => {
               const newUrls = [...prevUrls];

@@ -83,7 +83,7 @@
 .contactImage {
   width: 4.5rem; // Or 100% to fill a container
   height: 4.5rem;
-  border-radius: 50%; // Makes it circular
+  border-radius: 50%; // Makes it circular if both sides are the same
   object-fit: cover;  // Scales image nicely
   display: block;     // To allow margin auto if you want to center it
   margin-left: auto;

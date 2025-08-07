@@ -1,3 +1,5 @@
+import { ITag } from '../components/tagFolder/TagHolder';
+
 export interface IContact {
     Id: number;
     Title?: string;
@@ -7,4 +9,5 @@ export interface IContact {
     Image?: string;
     PhoneNumber?: string;
     Email?: string;
+    Tags: { results: ITag[]; }
 }
