@@ -24,19 +24,24 @@
   box-sizing: border-box;
   padding-bottom: 0.10rem;
   margin-bottom: 1rem;
-  margin-left: -2rem;
-  margin-right: -2rem;
+  
+  position: relative;
+  left: -2rem;
+  width: calc(100% + 4rem); /* 100% + 2rem left padding + 2rem right padding */
 
   display: flex;
-  justify-content: space-between;
   align-items: center;
 }
 
 
 .title {
-  margin-left: 2rem;
+  margin-left: 1.5rem;
 
   font-weight: 500;
+
+  padding: 0;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 
@@ -57,7 +62,8 @@
   height: 2rem;
   width: 2rem;
 
-  margin-right: 2rem;;
+  margin-left: auto;
+  margin-right: 0.2rem;
 
   display: flex;
   align-items: center;
@@ -70,8 +76,15 @@
   cursor: pointer;
   color: #333;
 
+  transition: all 0.2s ease-in-out;
+
   &:hover {
     background-color: "[theme: themePrimary, default: #000000]";
+    color: #fff;
+  }
+
+  &:active {
+    background-color: "[theme: themeDark, default: #000000]";
     color: #fff;
   }
 }

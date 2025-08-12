@@ -291,7 +291,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
         )}
       </div>
       <Modal isOpen={!!selectedContact} onClose={handleCloseModal}>
-        {selectedContact && <ContactPage contact={selectedContact} webAbsoluteUrl={props.webAbsoluteUrl} />}
+        {selectedContact && <ContactPage sp={props.sp} contact={selectedContact} webAbsoluteUrl={props.webAbsoluteUrl} />}
       </Modal>
       {isTagCreator && (
         <Collapsible title="Tags">
