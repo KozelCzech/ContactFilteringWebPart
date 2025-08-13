@@ -90,7 +90,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
             const nextUrl = data.d.__next;
 
             setContacts(newItems);
-            console.log(newItems);
             setHasNext(!!nextUrl);
             setPageUrls(prevUrls => {
               const newUrls = [...prevUrls];
@@ -104,7 +103,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
             throw new Error(`Error fetching data: ${response.statusText}`);
         }
     } catch (error) {
-        console.log("Error loading page: ", error);
+        console.error("Error loading page: ", error);
     } finally {
         setIsLoading(false);
     }
@@ -205,6 +204,16 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     setSelectedContact(undefined);
   };
 
+  const handleContactUpdate = (): void => {
+    handleCloseModal();
+    const urlToLoad = pageUrls[currentPageNumber];
+    if (urlToLoad) {
+      loadPageByUrl(urlToLoad).catch(error => {
+          console.log("Error loading page: ", error);
+      });
+    }
+  };
+
 
   const handleNext = (): void => {
         if (hasNext) {
@@ -291,7 +300,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
         )}
       </div>
       <Modal isOpen={!!selectedContact} onClose={handleCloseModal}>
-        {selectedContact && <ContactPage sp={props.sp} contact={selectedContact} webAbsoluteUrl={props.webAbsoluteUrl} />}
+        {selectedContact && <ContactPage sp={props.sp} contact={selectedContact} webAbsoluteUrl={props.webAbsoluteUrl} onUpdate={handleContactUpdate} />}
       </Modal>
       {isTagCreator && (
         <Collapsible title="Tags">
