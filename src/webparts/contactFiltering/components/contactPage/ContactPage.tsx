@@ -113,6 +113,17 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
     const removeTag = async (tag: ITag): Promise<void> => {
         try {
             const newTags = tags.filter((t: ITag) => t.Id !== tag.Id);
+
+            setOptions(prevOptions => {
+                const newOptions = prevOptions.map(option => {
+                    if (option.key === tag.Id) {
+                        return { ...option, disabled: false };
+                    }
+                    return option;
+                });
+                return newOptions;
+            });
+            
             setTags(newTags);
         } catch (error) {
             console.error("Error removing tag: ", error);
@@ -239,7 +250,7 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
             </div>
             <div className={styles.footer}>
                 <PrimaryButton text="Save Changes" onClick={saveChanges} style={{ marginRight: '8px' }} />
-                <DefaultButton text="Cancel" onClick={cancelChanges} />
+                <DefaultButton text="Revert Changes" onClick={cancelChanges} />
             </div>
         </div>
     );
