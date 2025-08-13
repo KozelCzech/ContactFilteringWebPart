@@ -7,7 +7,7 @@ import { IContact } from '../../models/IContact';
 import { ITag } from '../tagFolder/TagHolder';
 import { useEffect, useState } from 'react';
 import { SPFI } from '@pnp/sp';
-import { ComboBox, IComboBox, IComboBoxOption, Spinner } from '@fluentui/react';
+import { ComboBox, DefaultButton, IComboBox, IComboBoxOption, PrimaryButton, Spinner } from '@fluentui/react';
 import { getContrastColor } from '../../../../utils/colorUtils';
 import { DismissFilled } from '@fluentui/react-icons';
 
@@ -28,6 +28,7 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
 
     const [ options, setOptions ] = useState<IComboBoxOption[]>([]);
     const [ selectedKey, setSelectedKey ] = useState<string | number | undefined>(undefined);
+    const [ comboBoxText, setComboBoxText ] = useState<string>('');
 
 
 
@@ -90,8 +91,19 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
             const result = await sp.web.lists.getByTitle('Tags').items
             .select('Id', 'Title', 'TagName', 'Comment', 'tagColor').getById(selectedKey as number)();
             
-            setTags(currentTags => [...currentTags, result as ITag]);
+            setOptions(prevOptions => {
+                const newOptions = prevOptions.map(option => {
+                    if (option.key === selectedKey) {
+                        return { ...option, disabled: true };
+                    }
+                    return option;
+                });
+                return newOptions;
+            });
 
+            setTags(currentTags => [...currentTags, result as ITag]);
+            setSelectedKey(undefined);
+            setComboBoxText('');
         } catch (error) {
             console.error("Error adding tag: ", error);
         }
@@ -111,7 +123,6 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
     const saveChanges = async (): Promise<void> => {
         try {
             const tagIds: number[] = tags.map((tag: ITag) => tag.Id);
-            console.log(tags.length)
 
             const editedContact = {
                 Id: contact.Id,
@@ -141,8 +152,14 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
     }
 
 
-    const onSelectChange = (event: React.FormEvent<IComboBox>, option?: IComboBoxOption): void => {
-        setSelectedKey(option?.key);
+    const onSelectChange = (event: React.FormEvent<IComboBox>, option?: IComboBoxOption, index?: number, value?: string): void => {
+        if (option) {
+            setSelectedKey(option.key);
+            setComboBoxText(option.text);
+        } else {
+            setSelectedKey(undefined);
+            setComboBoxText(value as string);
+        }
     };
 
 
@@ -156,62 +173,73 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
     
 
     return (
-        <div>
-            <div>
+        <div className={styles.contactPage}>
+            <div className={styles.header}>
                 <img
                     src={attachmentUrl}
                     className={styles.contactImage}
                 />
+                <div className={styles.headerText}>
+                    <h3>{contact.FirstName || ""}  {contact.LastName || ""}</h3>
+                    {contact.Department && <p>{contact.Department}</p>}
+                </div>
             </div>
-
-            <h3>{contact.FirstName || ""}  {contact.LastName || ""}</h3>
-            {contact.Department && <p>{contact.Department}</p>}
-            {tags.length > 0 && <p>Tags:</p>}
-            <div className={styles.tagHolder}>
-                
-                {tagsLoading ? 
-                    <Spinner label="Loading tags..." /> 
-                    : 
-                    <>
-                        <div>
-                            <ComboBox
-                                className={styles.comboBoxContainer}
-                                autoComplete='on'
-                                allowFreeInput
-                                dropdownMaxWidth={300}
-                                options={options}
-                                selectedKey={selectedKey} 
-                                onChange={onSelectChange}
-                            /> 
-                            <button onClick={addTag}>+</button>
-                        </div>
-                        {tags.map((tag: ITag) => (
-                            <div key={tag.Id}>
-                                <div 
-                                    className={styles.tag}
-                                    style={{
-                                            backgroundColor: tag.tagColor,
-                                            color: getContrastColor(tag.tagColor)
-                                }}>
-                                    <p 
-                                        className={styles.tagName}
-                                        title={tag.Comment ? tag.Comment : tag.TagName}
-                                        >
-                                        {tag.TagName}
-                                    </p>
-                                    <button onClick={() => removeTag(tag)}>
-                                        <DismissFilled />
-                                    </button>
-                                </ div>
-                            </div>
-                            
-                        ))}
-                    </>
-                }
+            <div className={styles.content}>
+                <div className={styles.contactDetails}>
+                    <h4>Contact Details</h4>
+                    <p>Phone Number: {contact.PhoneNumber}</p>
+                    <p>Email: {contact.Email}</p>
+                </div>
+                <div className={styles.tagsSection}>
+                    <h4>Tags</h4>
+                    <div className={styles.tagHolder}>
+                        {tagsLoading ?
+                            <Spinner label="Loading tags..." />
+                            :
+                            <div className={styles.tagSection}>
+                                <div className={styles.addTagContainer}>
+                                    <ComboBox
+                                        className={styles.comboBoxContainer}
+                                        autoComplete='on'
+                                        allowFreeInput
+                                        dropdownMaxWidth={300}
+                                        options={options}
+                                        selectedKey={selectedKey}
+                                        onChange={onSelectChange}
+                                        text={comboBoxText}
+                                    />
+                                    <button onClick={addTag} className={styles.addButton} disabled={!selectedKey}>+</button>
+                                </div>
+                                <div className={styles.tagList}>
+                                    {tags.map((tag: ITag) => (
+                                        <div key={tag.Id}>
+                                            <div
+                                                className={styles.tag}
+                                                style={{
+                                                    backgroundColor: tag.tagColor,
+                                                    color: getContrastColor(tag.tagColor)
+                                                }}>
+                                                <p
+                                                    className={styles.tagName}
+                                                    title={tag.Comment ? tag.Comment : tag.TagName}
+                                                >
+                                                    {tag.TagName}
+                                                </p>
+                                                <button onClick={() => removeTag(tag)}>
+                                                    <DismissFilled />
+                                                </button>
+                                            </ div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </ div>
+                        }
+                    </div>
+                </div>
             </div>
-            <div>
-                <button onClick={saveChanges}>Save Changes</button>
-                <button onClick={cancelChanges}>Cancel Changes</button>
+            <div className={styles.footer}>
+                <PrimaryButton text="Save Changes" onClick={saveChanges} style={{ marginRight: '8px' }} />
+                <DefaultButton text="Cancel" onClick={cancelChanges} />
             </div>
         </div>
     );

@@ -4,10 +4,13 @@
   border-radius: 50%; // Makes it circular if both sides are the same
   object-fit: cover;  // Scales image nicely
   display: block;     // To allow margin auto if you want to center it
-  margin-left: auto;
-  margin-right: auto;
 }
 
+.tagSection {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 1rem;
+}
 
 .tagHolder { // possibly add a grid instead of flex
     display: flex;
@@ -101,4 +104,66 @@
     :global(.ms-ComboBox) {
         padding-right: 0;
     }
+}
+
+.contactPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.headerText {
+  h3 {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+  p {
+    margin: 0;
+    font-size: 1rem;
+    color: "[theme: neutralSecondary, default: #666666]";
+  }
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.contactDetails, .tagsSection {
+  border: 1px solid "[theme: neutralLight, default: #eaeaea]";
+  padding: 16px;
+  border-radius: 4px;
+}
+
+.addTagContainer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.addButton {
+    height: 32px;
+    width: 32px;
+    font-size: 16px;
+}
+
+.tagList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
