@@ -1,5 +1,5 @@
 import * as React from 'react';
-import styles from './ContactPage.module.scss'; // Your SCSS styles
+import styles from './UserPage.module.scss'; // Your SCSS styles
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/items";
@@ -13,7 +13,7 @@ import { IAbsence } from '../absences/AbsenceInterfaces';
 import { formatDate } from '../../../../utils/dateUtils';
 
 
-export interface IContactPageProps {
+export interface IUserPageProps {
     contact: IContact;
     webAbsoluteUrl: string;
     sp: SPFI;
@@ -21,7 +21,7 @@ export interface IContactPageProps {
 }
 
 
-const ContactPage: React.FC<IContactPageProps> = (props) => {
+const UserPage: React.FC<IUserPageProps> = (props) => {
     const { sp, contact, webAbsoluteUrl, onUpdate } = props;
     const [ tags, setTags ] = useState<ITag[]>([]);
     const [ tagsLoading, setTagsLoading ] = useState<boolean>(false);
@@ -63,7 +63,7 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                 .select('Id', 'Title', 
                     'Employee/Id', 'Employee/Title', 
                     'AbsenceType', 'To',
-                    'From', 'Notes', 'Approved').expand('Employee').filter(`Employee/Id eq '${contact.Id}'`)();
+                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee').filter(`Employee/Id eq '${contact.Id}'`)();
     
             setAbsences(result as IAbsence[]);
         } catch (exception){
@@ -76,8 +76,7 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
     const fetchTags = async (): Promise<void> => {
         setTagsLoading(true);
         const IDArray: number[] = [];
-        
-        try {            
+        try {
             contact.Tags?.forEach((tag: ITag) => {
                 IDArray.push(tag.Id);
             });
@@ -86,7 +85,7 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                 return sp.web.lists.getByTitle('Tags').items
                 .select('Id', 'Title', 'TagName', 'Comment', 'tagColor').getById(id)();
             });
-
+        
             const fetchedTags = await Promise.all(tagPromises);
     
             setTags(fetchedTags);
@@ -99,7 +98,7 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                 console.error("Error fetching absences: ", error);
             });
         } catch (error) {
-            console.error("Error fetching tags: ", error);
+            console.error("Error fetching user tags: ", error);
         } finally {
             setTagsLoading(false);
         }
@@ -303,6 +302,7 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                 <PrimaryButton text="Save Changes" onClick={saveChanges} style={{ marginRight: '8px' }} />
                 <DefaultButton text="Revert Changes" onClick={cancelChanges} />
             </div>
+            { absences.length > 0 && 
             <DetailsList
                         items={absences}
                         columns={columns}
@@ -311,9 +311,9 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                         constrainMode={ConstrainMode.horizontalConstrained}
                         selectionMode={SelectionMode.none} // Or SelectionMode.single, etc.
                         isHeaderVisible={true} 
-                        compact={true}/>
+                        compact={true}/> }
         </div>
     );
 }
 
-export default ContactPage;
+export default UserPage;

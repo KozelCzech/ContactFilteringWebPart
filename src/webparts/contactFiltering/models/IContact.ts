@@ -9,5 +9,7 @@ export interface IContact {
     Image?: string;
     PhoneNumber?: string;
     Email?: string;
-    Tags: { results: ITag[]; }
+    Tags?: ITag[];
+    Leader?: IContact;
+    BackupLeader?: IContact;
 }

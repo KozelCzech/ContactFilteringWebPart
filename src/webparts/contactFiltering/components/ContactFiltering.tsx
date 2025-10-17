@@ -8,11 +8,20 @@ import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
 import { Spinner } from '@fluentui/react/lib/Spinner';
 import { IContact } from '../models/IContact';
 import ContactCard from './ContactCard';
-import ContactPage from './contactPage/ContactPage';
 import TagHolder from './tagFolder/TagHolder';
 import Modal from './subComponents/modal/Modal';
 import Collapsible from './subComponents/collapsible/Collapsible';
 import Paginator from './subComponents/paginator/Paginator';
+import AbsenceList from './absences/AbsenceList/AbsenceList';
+import ContactPage from './contactPage/ContactPage';
+import UserPage from './userPage/UserPage';
+import RequestAbsence from './absences/requestAbsence/RequestAbsence';
+import ApproveAbsence from './absences/approveAbsence/ApproveAbsence';
+import TabsView from './subComponents/tabsView/tabsView';
+import { PivotItem } from '@fluentui/react';
+
+
+
 
 const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [contacts, setContacts] = useState<IContact[]>([]);
@@ -37,7 +46,14 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [hasNext, setHasNext] = useState<boolean>(false);
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
+  const [ userModalOpen, setUserModalOpen ] = useState<boolean>(false);
+  const [ currentUser, setCurrentUser] = useState<IContact>();
 
+  const [ requestAbsenceModalOpen, setRequestAbsenceModalOpen ] = useState<boolean>(false);
+  const [ approveAbsenceModalOpen, setApproveAbsenceModalOpen ] = useState<boolean>(false);
+
+
+  // #region Contacts
   const createFilter = async(): Promise<void> => {
     const filterParts: string[] = [];
     const escapedNameText = nameText.replace(/'/g, "''");
@@ -63,9 +79,8 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const createFullQuery = async(): Promise<string> => {
       let itemsQuery = props.sp.web.lists.getByTitle('ContactFilteringTest').items.select(
         'Id', 'Title', 'FirstName', 'LastName', 'Department', 'Image', 'PhoneNumber', 'Email', 
-        "Tags/Id",
-        "Tags/TagName",
-      ).expand("Tags");
+        "Tags/Id", "Tags/TagName", "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title"
+      ).expand("Tags", "Leader", "BackupLeader");
       const filterQuery = activeFilter;
 
       if (filterQuery) {
@@ -86,7 +101,13 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
         if (response.ok) {
             const data = await response.json();
-            const newItems = data.d.results as IContact[];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const newItems: IContact[] = (data.d.results as any[]).map(contact => {
+              if (contact.Tags && 'results' in contact.Tags) {
+                return { ...contact, Tags: contact.Tags.results };
+              }
+              return contact;
+            });
             const nextUrl = data.d.__next;
 
             setContacts(newItems);
@@ -129,10 +150,8 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       setIsLoading(false);
     }
   };
-
   
-
-
+  
   const fetchDepartmentChoices = useCallback(async (): Promise<void> => {
     setIsLoadingDepartments(true);
     try {
@@ -150,7 +169,27 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       setIsLoadingDepartments(false);
     }
   }, [props.sp]);
+  // #endregion
 
+
+  const fetchUser = async(): Promise<void> => {
+    try {
+      const user = await props.sp.web.currentUser();
+
+      const result = await props.sp.web.lists.getByTitle("ContactFilteringTest").items
+      .select(
+        'Id', 'Title', 'FirstName', 'LastName', 'Department', 'Image', 'PhoneNumber', 'Email', 
+        "Tags/Id", "Tags/TagName", "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title"
+      ).expand("Tags", "Leader", "BackupLeader").filter('Email eq \'' + user.Email + '\'')();
+      setCurrentUser(result[0] as IContact);
+
+
+    } catch (exception) {
+      console.error("Error fetching user email: ", exception);
+      return;
+    }
+  }
+  
 
   const isUserInGroup = useCallback(async (groupName: string): Promise<boolean> => {
     try {
@@ -163,6 +202,9 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   }, [props.sp]);
 
 
+
+
+  // #region Inputs
   const onNameTextChange = (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
     setNameText(newValue || "");
   };
@@ -198,21 +240,37 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const handleContactCardClick = (contact: IContact): void => {
     setSelectedContact(contact);
   };
-
-
-  const handleCloseModal = (): void => {
+  
+  
+  const handleCloseContactModal = (): void => {
     setSelectedContact(undefined);
   };
-
+  
+  
   const handleContactUpdate = (): void => {
-    handleCloseModal();
+    handleCloseContactModal();
     const urlToLoad = pageUrls[currentPageNumber];
     if (urlToLoad) {
       loadPageByUrl(urlToLoad).catch(error => {
-          console.log("Error loading page: ", error);
+        console.log("Error loading page: ", error);
       });
     }
   };
+  
+  
+    const handleUserPageClick = (): void => {
+      setUserModalOpen(true);
+    };
+
+
+    const handleCloseUserPageModal = (): void => {
+      setUserModalOpen(false);
+    }
+
+
+    const handleUserPageUpdate = (): void => {
+      setUserModalOpen(false);
+    }
 
 
   const handleNext = (): void => {
@@ -228,6 +286,26 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
         }
     }
 
+
+    const handleRequestAbsenceClick = (): void => {
+      setRequestAbsenceModalOpen(true);
+    }
+
+
+    const handleRequestAbsenceUpdate = (): void => {
+      setRequestAbsenceModalOpen(false);
+    }
+
+    const handleApproveAbsenceClick = (): void => {
+      setApproveAbsenceModalOpen(true);
+    }
+
+    const handleApproveAbsenceUpdate = (): void => {
+      setApproveAbsenceModalOpen(false);
+    }
+
+
+  // #endregion
   
   useEffect(() => {
     const init = async (): Promise<void> => {
@@ -237,6 +315,8 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       const tagCreatorStatus = await isUserInGroup("TagCreators");
       setIsTagCreator(tagCreatorStatus);
       setItemsPerPage(10);
+
+      fetchUser().catch(error => console.error("Error fetching user email:", error));
     };
 
     // eslint-disable-next-line no-void
@@ -263,50 +343,71 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   return (
     <div className={styles.contactFiltering}>
-      <div className={styles.filtersContainer}>
-        <TextField label="Name:" placeholder="Enter first or last name..." value={nameText} onChange={onNameTextChange} />
-        <Dropdown
-          label="Department:"
-          placeholder="Select a Department"
-          options={departmentOptions}
-          selectedKey={selectedDepartment}
-          onChange={onDepartmentChange}
-          disabled={isLoadingDepartments}
-        />
-        <TextField label="Phone number:" placeholder="Enter phone number..." value={phoneNumberText} onChange={onPhoneNumberTextChange} />
-        <TextField label="Email:" placeholder="Enter email..." value={emailText} onChange={onEmailTextChange} />
-      </div>
-      <div className={styles.actionsContainer}>
-        <PrimaryButton text="Apply Filters" onClick={createFilter} style={{ marginRight: '8px' }} />
-        <PrimaryButton text="Clear Filters" onClick={onClearFilterClick} />
-      </div>
-      <div className={styles.resultsContainer}>
-        {isLoading ? (
-          <Spinner label="I am definitely loading..." />
-        ) : (
-          <Paginator 
-            hasNext={hasNext} 
-            hasPrevious={currentPageNumber > 0} 
-            currentPageNumber={currentPageNumber}
-            handleNext={handleNext}
-            handlePrevious={handlePrevious}
-          >
-            <div className={styles.cardContainer}>
-              {contacts.map((contact: IContact) => (
-                <ContactCard key={contact.Id} contact={contact} webAbsoluteUrl={props.webAbsoluteUrl} onClick={() => handleContactCardClick(contact)} />
-              ))}
-            </div>
-          </Paginator>
-        )}
-      </div>
-      <Modal isOpen={!!selectedContact} onClose={handleCloseModal}>
+      <div onClick={handleRequestAbsenceClick}>Request absence</div>
+      <div onClick={handleApproveAbsenceClick}>Approve absence</div>
+      <div onClick={handleUserPageClick}>user</div>
+      {/* TODO: Add Tabs */}
+      <TabsView>
+        <PivotItem headerText='Contact list' itemKey='contacts'>
+          <div className={styles.filtersContainer}>
+            <TextField label="Name:" placeholder="Enter first or last name..." value={nameText} onChange={onNameTextChange} />
+            <Dropdown
+              label="Department:"
+              placeholder="Select a Department"
+              options={departmentOptions}
+              selectedKey={selectedDepartment}
+              onChange={onDepartmentChange}
+              disabled={isLoadingDepartments}
+            />
+            <TextField label="Phone number:" placeholder="Enter phone number..." value={phoneNumberText} onChange={onPhoneNumberTextChange} />
+            <TextField label="Email:" placeholder="Enter email..." value={emailText} onChange={onEmailTextChange} />
+          </div>
+          <div className={styles.actionsContainer}>
+            <PrimaryButton text="Apply Filters" onClick={createFilter} style={{ marginRight: '8px' }} />
+            <PrimaryButton text="Clear Filters" onClick={onClearFilterClick} />
+          </div>
+          <div className={styles.resultsContainer}>
+            {isLoading ? (
+              <Spinner label="I am definitely loading..." />
+            ) : (
+              <Paginator 
+                hasNext={hasNext} 
+                hasPrevious={currentPageNumber > 0} 
+                currentPageNumber={currentPageNumber}
+                handleNext={handleNext}
+                handlePrevious={handlePrevious}
+              >
+                <div className={styles.cardContainer}>
+                  {contacts.map((contact: IContact) => (
+                    <ContactCard key={contact.Id} contact={contact} webAbsoluteUrl={props.webAbsoluteUrl} onClick={() => handleContactCardClick(contact)} />
+                  ))}
+                </div>
+              </Paginator>
+            )}
+          </div>
+          {isTagCreator && (
+            <Collapsible title="Tags">
+              <TagHolder sp={props.sp} webUrl={props.webAbsoluteUrl} />
+            </Collapsible>
+          )}
+        </ PivotItem>
+        <PivotItem headerText='Absences' itemKey='absences'>
+          <AbsenceList sp={props.sp} />
+        </PivotItem>
+      </TabsView>
+      <Modal isOpen={userModalOpen} onClose={handleCloseUserPageModal}>
+        {currentUser && <UserPage sp={props.sp} contact={currentUser} webAbsoluteUrl={props.webAbsoluteUrl} onUpdate={handleUserPageUpdate}/>}
+      </Modal>
+      <Modal isOpen={!!selectedContact} onClose={handleCloseContactModal}>
         {selectedContact && <ContactPage sp={props.sp} contact={selectedContact} webAbsoluteUrl={props.webAbsoluteUrl} onUpdate={handleContactUpdate} />}
       </Modal>
-      {isTagCreator && (
-        <Collapsible title="Tags">
-          <TagHolder sp={props.sp} webUrl={props.webAbsoluteUrl} />
-        </Collapsible>
-      )}
+      <Modal isOpen={requestAbsenceModalOpen} onClose={handleRequestAbsenceUpdate}>
+        {currentUser && <RequestAbsence user={currentUser} sp={props.sp} onUpdate={handleRequestAbsenceUpdate} /> }
+      </Modal>
+      <Modal isOpen={approveAbsenceModalOpen} onClose={handleApproveAbsenceUpdate}>
+        {currentUser && <ApproveAbsence sp={props.sp} user={currentUser} />}
+      </ Modal>
+        
     </div>
   );
 };

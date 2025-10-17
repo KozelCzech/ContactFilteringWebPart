@@ -1,0 +1,36 @@
+// Base styles for the status badges
+.statusApproved,
+.statusPending {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 16px; // Makes it pill-shaped
+  font-weight: 600;
+
+  // The colored dot
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+}
+
+// Specific colors for each status
+.statusApproved {
+  color: #107C10; // Dark green text
+  background-color: #DFF6DD; // Light green background
+  &::before {
+    background-color: #107C10; // Dark green dot
+  }
+}
+
+.statusPending {
+  color: #A85A00; // Dark orange text
+  background-color: #FFF4CE; // Light orange/yellow background
+  &::before {
+    background-color: #A85A00; // Dark orange dot
+  }
+}
