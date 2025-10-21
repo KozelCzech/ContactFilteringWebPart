@@ -4,7 +4,7 @@ import styles from './ContactFiltering.module.scss';
 import type { IContactFilteringProps } from './IContactFilteringProps';
 import { TextField } from '@fluentui/react/lib/TextField';
 import { PrimaryButton } from '@fluentui/react/lib/Button';
-import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
+import { Dropdown, IDropdownOption, Image, ImageFit } from '@fluentui/react';
 import { Spinner } from '@fluentui/react/lib/Spinner';
 import { IContact } from '../models/IContact';
 import ContactCard from './ContactCard';
@@ -19,6 +19,7 @@ import RequestAbsence from './absences/requestAbsence/RequestAbsence';
 import ApproveAbsence from './absences/approveAbsence/ApproveAbsence';
 import TabsView from './subComponents/tabsView/tabsView';
 import { PivotItem } from '@fluentui/react';
+import { fetchAbsencesAwaitingApproval } from '../../../utils/userUtils';
 
 
 
@@ -52,7 +53,10 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [ requestAbsenceModalOpen, setRequestAbsenceModalOpen ] = useState<boolean>(false);
   const [ approveAbsenceModalOpen, setApproveAbsenceModalOpen ] = useState<boolean>(false);
 
+  const [ showApproveAbsence, setShowApproveAbsence ] = useState<boolean>(false);
 
+  const listName: string = "ContactFilteringTest";
+  
   // #region Contacts
   const createFilter = async(): Promise<void> => {
     const filterParts: string[] = [];
@@ -305,6 +309,32 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     }
 
 
+    const fetchUserImage = (): string => {
+      try {
+        const attachmentName = JSON.parse(currentUser?.Image || "").fileName;
+        const attachmentUrl = `${props.webAbsoluteUrl}/Lists/${listName}/Attachments/${currentUser?.Id}/${attachmentName}`;
+        return attachmentUrl;
+      } catch (exception) {
+        console.error(exception);
+        return "";
+      }
+    }
+
+
+    const approveAbsenceRequired = async (): Promise<void> => {
+      if (currentUser) {
+        const absencesToApprove = await fetchAbsencesAwaitingApproval(props.sp, currentUser);
+        if (absencesToApprove.length > 0) {
+          setShowApproveAbsence(true);
+        } else {
+          setShowApproveAbsence(false);
+        }
+      } else {
+        setShowApproveAbsence(false);
+      }
+    }
+
+
   // #endregion
   
   useEffect(() => {
@@ -317,6 +347,8 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       setItemsPerPage(10);
 
       fetchUser().catch(error => console.error("Error fetching user email:", error));
+
+      approveAbsenceRequired().catch(error => console.error("Error fetching user email:", error));
     };
 
     // eslint-disable-next-line no-void
@@ -328,6 +360,11 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
             console.log("Error getting first page: ", error);
         });
   }, [activeFilter])
+
+  useEffect(() => {
+    approveAbsenceRequired()
+      .catch(error => console.error("Error fetching user email:", error));
+  }, [currentUser, approveAbsenceModalOpen, requestAbsenceModalOpen])
 
   useEffect(() => {
     if (currentPageNumber === 0 || currentPageNumber > 0 ) {
@@ -343,10 +380,15 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   return (
     <div className={styles.contactFiltering}>
-      <div onClick={handleRequestAbsenceClick}>Request absence</div>
-      <div onClick={handleApproveAbsenceClick}>Approve absence</div>
-      <div onClick={handleUserPageClick}>user</div>
-      {/* TODO: Add Tabs */}
+      <div className={styles.headerActionsContainer}>
+        <div className={styles.headerActions}>
+          <div onClick={handleRequestAbsenceClick}>Request absence</div>
+          {showApproveAbsence && <div onClick={handleApproveAbsenceClick}>Approve absence</div>}
+          <div onClick={handleUserPageClick} className={styles.userAction} >
+            {currentUser?.Image && <Image src={fetchUserImage()} className={styles.userImage} imageFit={ImageFit.cover} />}
+          </div>
+        </div>
+      </div>
       <TabsView>
         <PivotItem headerText='Contact list' itemKey='contacts'>
           <div className={styles.filtersContainer}>
@@ -370,9 +412,9 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
             {isLoading ? (
               <Spinner label="I am definitely loading..." />
             ) : (
-              <Paginator 
-                hasNext={hasNext} 
-                hasPrevious={currentPageNumber > 0} 
+              <Paginator
+                hasNext={hasNext}
+                hasPrevious={currentPageNumber > 0}
                 currentPageNumber={currentPageNumber}
                 handleNext={handleNext}
                 handlePrevious={handlePrevious}
@@ -392,7 +434,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
           )}
         </ PivotItem>
         <PivotItem headerText='Absences' itemKey='absences'>
-          <AbsenceList sp={props.sp} />
+          <AbsenceList sp={props.sp} requestModalOpen={requestAbsenceModalOpen} approveModalOpen={approveAbsenceModalOpen}/>
         </PivotItem>
       </TabsView>
       <Modal isOpen={userModalOpen} onClose={handleCloseUserPageModal}>

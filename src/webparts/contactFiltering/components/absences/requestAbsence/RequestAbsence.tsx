@@ -28,35 +28,78 @@ interface IAbsenceValidationErrors {
 
 const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     const { user, sp, onUpdate} = props;
-    const [ newAbsence, setNewAbsence ] = useState<IAbsence>({
-        Id: 0,
-        Employee: { Id: user.Id, Title: user.Title },
-        AbsenceType: '',
-        From: new Date(),
-        To: new Date(),
-        Notes: '',
-        NoteForLeader: '',
-        Approved: false,
-        Title: '',
-        Approvee: {Id: 0, Title: ''}
+    const [ newAbsence, setNewAbsence ] = useState<IAbsence>(() => {
+        const fromDate = new Date();
+        fromDate.setHours(0, 0, 0, 0);
+
+        const toDate = new Date();
+        toDate.setHours(23, 59, 59, 999);
+
+        return {
+            Id: 0,
+            Employee: { Id: user.Id, Title: user.Title },
+            AbsenceType: '',
+            From: fromDate,
+            To: toDate,
+            Notes: '',
+            NoteForLeader: '',
+            Approved: false,
+            Title: '',
+            Approvee: {Id: 0, Title: ''}
+        };
     });
     const [ errors, setErrors ] = useState<IAbsenceValidationErrors>({});
     const [ absenceTypeOptions, setAbsenceTypeOptions ] = useState<IDropdownOption[]>([]);
 
 
-    const getValidLeader = async (): Promise<IContact> => {
+    const isOnLeave = async (personId: number): Promise<boolean> => {
+        try{
+            const result = await sp.web.lists.getByTitle("Absence").items
+                .select('Id', 'Title', 
+                    'Employee/Id', 'Employee/Title', 
+                    'AbsenceType', 'To',
+                    'From', 'Notes', 'NoteForLeader',
+                    'Approved', 'Approvee/Id', 'Approvee/Title')
+                .expand('Employee, Approvee')
+                .filter(`Employee/Id eq ${personId} and Approved eq 1`)();
+
+            const absences: IAbsence[] = result as IAbsence[];
+            const today = new Date;
+
+            return absences.some(abs => new Date(abs.From) <= today && new Date(abs.To) >= today);
+        } catch (exception) {
+            console.error(exception);
+            return false;
+        }
+    }
+
+
+    const getValidLeader = async (person: IContact, depth = 0): Promise<IContact> => {
         try {
-            const directLeader: any = user.Leader || user.BackupLeader; // eslint-disable-line @typescript-eslint/no-explicit-any
-            if (directLeader) {
-                return {
-                    ...directLeader,
-                    Id: directLeader.ID,
-                };
+            if (depth > 10) { // Add a depth limit to prevent infinite recursion
+                throw new Error("Could not find a valid leader within 10 levels of hierarchy.");
+            }
+            // 1. Check primary leader
+            if (person.Leader) {
+                const isLeaderOnLeave = await isOnLeave(person.Leader.Id || person.Leader.ID || 0);
+                if (!isLeaderOnLeave) return person.Leader; // Return the leader if they are not on leave
+            }
+ 
+            // 2. If primary leader is unavailable, check backup leader
+            if (person.BackupLeader) {
+                const isBackupLeaderOnLeave = await isOnLeave(person.BackupLeader.Id || person.BackupLeader.ID || 0);
+                if (!isBackupLeaderOnLeave) return person.BackupLeader; // Return backup if not on leave
             }
 
-            // 2. If no direct leader, fall back to the department leader logic.
-            const departmentLeaderInfo = await getLeaderInfo(sp, user);
-            return departmentLeaderInfo;
+            // 3. If both are unavailable, fall back to the department leader logic.
+            // Use the 'person' from the current recursive call, not the original 'user'.
+            const departmentLeaderInfo = await getLeaderInfo(sp, person);
+            const isDepartmentLeaderOnLeave = await isOnLeave(departmentLeaderInfo.Id);
+            if (!isDepartmentLeaderOnLeave) {
+                return departmentLeaderInfo; // Return department leader if not on leave
+            } else {
+                return getValidLeader(departmentLeaderInfo, depth + 1); // Recurse with the next leader
+            }
         } catch (exception) {
             console.error("Couldnt get any leader! " + exception);
             return {Id: 0, Title: ''};   
@@ -68,11 +111,10 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         try {
             const list = sp.web.lists.getByTitle("Absence");
             // When adding an item with a lookup field, you must use the 'FieldNameId' syntax.
-            const bossMan: IContact = await getValidLeader();
-            console.log(bossMan);
+            const bossMan: IContact = await getValidLeader(user);
             const itemToAdd = {
                 EmployeeId: newAbsence.Employee.Id,
-                ApproveeId: bossMan.Id,
+                ApproveeId: bossMan.Id || bossMan.ID,
                 AbsenceType: newAbsence.AbsenceType,
                 From: newAbsence.From,
                 To: newAbsence.To,
@@ -161,14 +203,18 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
     const onToChange = (date: Date | null | undefined): void => {
         if (date) {
+            date.setHours(23, 59, 59, 999); // Set to the end of the day
             setErrors(prev => ({ ...prev, to: undefined }));
+            console.log("Date To: " + date.toString());
             setNewAbsence(prev => ({ ...prev, To: date }));
         }
     }
 
     const onFromChange = (date: Date | null | undefined): void => {
         if (date) {
+            date.setHours(0, 0, 0, 0); // Set to the beginning of the day
             setErrors(prev => ({ ...prev, from: undefined }));
+            console.log("Date From: " + date.toString());
             setNewAbsence(prev => ({ ...prev, From: date }));
         }
     }

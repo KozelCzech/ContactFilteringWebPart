@@ -3,7 +3,7 @@ import styles from './AbsenceList.module.scss';
 import { SPFI } from '@pnp/sp';
 import { useEffect } from 'react';
 import { IAbsence } from '../AbsenceInterfaces';
-import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, SelectionMode } from '@fluentui/react';
+import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, PivotItem, SelectionMode } from '@fluentui/react';
 import { CheckmarkFilled, DismissFilled } from '@fluentui/react-icons';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -11,10 +11,13 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { formatDate } from '../../../../../utils/dateUtils';
 import { IContact } from '../../../models/IContact';
+import TabsView from '../../subComponents/tabsView/tabsView';
 
 
 export interface AbsenceListProps {
     sp: SPFI;
+    requestModalOpen: boolean;
+    approveModalOpen: boolean;
 }
 
 
@@ -27,7 +30,7 @@ export interface ICallendarEvent {
 
 
 const AbsenceList: React.FC<AbsenceListProps> = (props) => {
-    const { sp } = props
+    const { sp, requestModalOpen, approveModalOpen } = props
     const [ absences, setAbsences ] = React.useState<IAbsence[]>([]);
     const [ contacts, setContacts ] = React.useState<IContact[]>([]);
 
@@ -115,6 +118,22 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
         });
     }, []);
 
+    useEffect(() => {
+        const loadInitialData = async (): Promise<void> => {
+            try {
+                const fetchedAbsences = await fetchAbsences();
+                setAbsences(fetchedAbsences);
+                await fetchAbsenceContacts(fetchedAbsences);
+            } catch (error) {
+                console.error("Error loading absence data: ", error);
+            }
+        };
+    
+        loadInitialData().catch(error => {
+            console.error("An error occurred during initial data load:", error);
+        });
+    }, [requestModalOpen, approveModalOpen]);
+
 
     const columns: IColumn[] = [
         {
@@ -161,31 +180,37 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
         
                 Make filtering BEFORE the tabs, to filter by names or reason of absence
                 logic should be the same for both, just applying them a bit differently*/}
-            <DetailsList
-                items={absences}
-                columns={columns}
-                setKey="set"
-                layoutMode={DetailsListLayoutMode.justified} // 2. Change to fixedColumns
-                constrainMode={ConstrainMode.horizontalConstrained}
-                selectionMode={SelectionMode.none} // Or SelectionMode.single, etc.
-                isHeaderVisible={true} 
-                compact={true} />
+            <TabsView>
+                <PivotItem headerText='List' itemKey='list'>
+                    <DetailsList
+                        items={absences}
+                        columns={columns}
+                        setKey="set"
+                        layoutMode={DetailsListLayoutMode.justified} // 2. Change to fixedColumns
+                        constrainMode={ConstrainMode.horizontalConstrained}
+                        selectionMode={SelectionMode.none} // Or SelectionMode.single, etc.
+                        isHeaderVisible={true} 
+                        compact={true} />
+                </PivotItem>
+                <PivotItem headerText='Calendar' itemKey='calendar'>
+                    <FullCalendar
+                        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
 
-            <FullCalendar
-                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                        headerToolbar={{
+                            left: 'title',
+                            center: '',
+                            right: 'today prev,next'
+                        }}
 
-                headerToolbar={{
-                    left: 'title',
-                    center: '',
-                    right: 'today prev,next'
-                }}
+                        initialView='dayGridMonth'
+                        events={initialEvents}
+                
+                        editable={false} 
+                        selectable={true}
+                        displayEventTime={false} />
+                </PivotItem>
+            </TabsView>
 
-                initialView='dayGridMonth'
-                events={initialEvents}
-        
-                editable={false} 
-                selectable={true}
-                displayEventTime={false} />
         </div>
     )
 }

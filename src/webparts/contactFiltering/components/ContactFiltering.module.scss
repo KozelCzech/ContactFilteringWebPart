@@ -3,6 +3,42 @@
   margin-bottom: 16px;
 }
 
+.headerActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  
+  > div {
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 4px;
+    &:hover {
+      background-color: "[theme: neutralLighter, default: #f3f2f1]";
+    }
+  }
+}
+
+.headerActionsContainer {
+  display: flex;
+  justify-content: flex-end; /* Aligns actions to the right */
+  padding: 8px 16px; /* Add some padding around the actions */
+  border-bottom: 1px solid "[theme: neutralQuaternary, default: #e5e5e5]";
+  margin-bottom: 16px; /* Space between actions and tabs */
+}
+
+.userAction {
+  padding: 0 !important; /* Override padding for the image container */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.userImage {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
 .filtersContainer {
   margin-bottom: 16px;
   display: flex; /* Example: if you want filters side-by-side later */
@@ -90,4 +126,3 @@
   margin-right: auto;
 }
 //#endregion
-

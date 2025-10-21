@@ -1,5 +1,6 @@
 import { SPFI } from "@pnp/sp";
 import { IContact } from "../webparts/contactFiltering/models/IContact";
+import { IAbsence } from "../webparts/contactFiltering/components/absences/AbsenceInterfaces";
 
 
 export interface IDepartment {
@@ -61,3 +62,22 @@ export const getLeaderInfo = async (sp: SPFI, user: IContact): Promise<IContact>
     const department = await fetchDepartment(sp, position.Department.Id);
     return department?.Leader;
 }
+
+
+export const fetchAbsencesAwaitingApproval = async (sp: SPFI, user: IContact): Promise<IAbsence[]> => {
+        try {
+            const results = await sp.web.lists.getByTitle('Absence').items
+                .select('Id', 'Title', 
+                    'Employee/Id', 'Employee/Title', 
+                    'AbsenceType', 'To',
+                    'From', 'Notes', 'NoteForLeader',
+                    'Approved', 'Approvee/Id', 'Approvee/Title')
+                .expand('Employee, Approvee')
+                .filter('Approved eq false and Approvee/Id eq ' + user.Id)();
+                    
+            return results as IAbsence[];
+        } catch (exception) {
+            console.error("Error fetching absences awaiting approval: ", exception);
+            return [];
+        }
+    };

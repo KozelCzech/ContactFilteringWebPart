@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { IAbsence } from '../AbsenceInterfaces';
 import { formatDate } from '../../../../../utils/dateUtils';
 import { DefaultButton, PrimaryButton } from '@fluentui/react/lib/Button';
+import { fetchAbsencesAwaitingApproval } from '../../../../../utils/userUtils';
 
 interface IApproveAbsenceProps{
     sp: SPFI;
@@ -18,24 +19,7 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
     const [ contacts, setContacts ] = useState<IContact[]>([]);
 
 
-    const fetchAbsencesAwaitingApproval = async (): Promise<IAbsence[]> => {
-        try {
-            const results = await sp.web.lists.getByTitle('Absence').items
-                .select('Id', 'Title', 
-                    'Employee/Id', 'Employee/Title', 
-                    'AbsenceType', 'To',
-                    'From', 'Notes', 'NoteForLeader',
-                    'Approved', 'Approvee/Id', 'Approvee/Title')
-                .expand('Employee, Approvee')
-                .filter('Approved eq false and Approvee/Id eq ' + user.Id)();
-
-            setAbsencesToApprove(results)
-            return results as IAbsence[];
-        } catch (exception) {
-            console.error("Error fetching absences awaiting approval: ", exception);
-            return [];
-        }
-    };
+    
 
 
     const fetchAbsenceContacts = async (currentAbsences: IAbsence[]): Promise<void> => {
@@ -54,7 +38,6 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
                 .select('ID', 'Title', 'FirstName', 'LastName')
                 .filter(filterQuery)();
             
-            console.log(resolvedContacts);
             setContacts(resolvedContacts);
 
         } catch (error) {
@@ -69,7 +52,8 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
                 Approved: true
             });
             // Refresh the list after approval
-            const fetchedAbsences = await fetchAbsencesAwaitingApproval();
+            const fetchedAbsences = await fetchAbsencesAwaitingApproval(sp, user);
+            setAbsencesToApprove(fetchedAbsences);
             await fetchAbsenceContacts(fetchedAbsences);
         } catch (error) {
             console.error("Error approving absence: ", error);
@@ -90,7 +74,7 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
             {
                 key: 'actions',
                 name: 'Actions',
-                minWidth: 170,
+                minWidth: 180,
                 isResizable: false,
                 onRender: (item: IAbsence) => (
                     <div>
@@ -110,22 +94,22 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
                 }
             },
             {
-                key: 'type', name: 'Typ', fieldName: 'AbsenceType', minWidth: 80, isResizable: true,
+                key: 'type', name: 'Typ', fieldName: 'AbsenceType', minWidth: 80, isResizable: false,
             },
             {
-                key: 'from', name: 'Od', fieldName: 'From', minWidth: 65, isResizable: true,
+                key: 'from', name: 'Od', fieldName: 'From', minWidth: 65, isResizable: false,
                 // 2. Use onRender to format the date cell
                 onRender: (item: IAbsence) => <span>{formatDate(item.From.toString())}</span>,
             },
             {
-                key: 'to', name: 'Do', fieldName: 'To', minWidth: 65, isResizable: true,
+                key: 'to', name: 'Do', fieldName: 'To', minWidth: 65, isResizable: false,
                 onRender: (item: IAbsence) => <span>{formatDate(item.To.toString())}</span>,
             },
             {
-                key: 'notes', name: 'Poznámka', fieldName: 'Notes', minWidth: 200, isResizable: true,
+                key: 'notes', name: 'Poznámka', fieldName: 'Notes', minWidth: 200, isResizable: false,
             },
             {
-                key: 'noteForLeader', name: 'Poznámka pro vedoucího', fieldName: 'NoteForLeader', minWidth: 200, isResizable: true,
+                key: 'noteForLeader', name: 'Poznámka pro vedoucího', fieldName: 'NoteForLeader', minWidth: 200, isResizable: false,
             }
         ];
 
@@ -133,7 +117,8 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
     //button to approve of reject an absence, rejecting deletes it
     useEffect(() => {
         const loadAbsences = async (): Promise<void> => {
-            const fetchedAbsences = await fetchAbsencesAwaitingApproval();   
+            const fetchedAbsences = await fetchAbsencesAwaitingApproval(sp, user);
+            setAbsencesToApprove(fetchedAbsences);
             await fetchAbsenceContacts(fetchedAbsences);            
         };
         loadAbsences().catch(console.error);
