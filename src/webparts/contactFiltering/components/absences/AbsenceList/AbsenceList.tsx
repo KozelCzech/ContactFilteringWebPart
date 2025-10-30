@@ -3,15 +3,17 @@ import styles from './AbsenceList.module.scss';
 import { SPFI } from '@pnp/sp';
 import { useEffect } from 'react';
 import { IAbsence } from '../AbsenceInterfaces';
-import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, PivotItem, SelectionMode } from '@fluentui/react';
+import { ConstrainMode, DetailsList, DetailsListLayoutMode, Dropdown, IColumn, IconButton, IDropdownOption, PivotItem, PrimaryButton, SelectionMode, TextField } from '@fluentui/react';
 import { CheckmarkFilled, DismissFilled } from '@fluentui/react-icons';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { formatDate } from '../../../../../utils/dateUtils';
+import { formatDate, getCzechHolidaysCallendarEvents } from '../../../../../utils/dateUtils';
 import { IContact } from '../../../models/IContact';
 import TabsView from '../../subComponents/tabsView/tabsView';
+import { IFieldInfo } from '@pnp/sp/fields';
+
 
 
 export interface AbsenceListProps {
@@ -24,8 +26,10 @@ export interface AbsenceListProps {
 export interface ICallendarEvent {
     title?: string;
     start: string;
-    end: string;
-    //Add color: and backgroundcolor: based on some parameters if needed, or atleast unify all colors
+    end?: string; // Make end optional as per FullCalendar's EventObject
+    display?: 'auto' | 'background' | 'inverse-background' | 'none'; // Add display property
+    color?: string; // Add color property
+    backgroundColor?: string; // Add backgroundColor property
 }
 
 
@@ -33,16 +37,28 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
     const { sp, requestModalOpen, approveModalOpen } = props
     const [ absences, setAbsences ] = React.useState<IAbsence[]>([]);
     const [ contacts, setContacts ] = React.useState<IContact[]>([]);
+    const [ displayedAbsences, setDisplayedAbsences ] = React.useState<IAbsence[]>([]);
+
+    const [ absenceTypeOptions, setAbsenceTypeOptions ] = React.useState<IDropdownOption[]>([]);
+
+    const [ absenceType, setAbsenceType ] = React.useState<string | number | undefined>(undefined);
+    const [ nameText, setNameText ] = React.useState<string>('');
+    const [ activeFilter, setActiveFilter ] = React.useState<string>('');
+    const [ activeNameFilter, setActiveNameFilter ] = React.useState<string>('');
+
+
 
     // #region SetUp
-    const fetchAbsences = async (): Promise<IAbsence[]> => {
+    const fetchAbsences = async (filter: string = ""): Promise<IAbsence[]> => {
         try {
-            const result = await sp.web.lists.getByTitle('Absence').items
+            const items = sp.web.lists.getByTitle('Absence').items
                 .select('Id', 'Title', 
                     'Employee/Id', 'Employee/Title', 
                     'AbsenceType', 'To',
-                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee')();
-    
+                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee');
+            
+            const result = filter ? await items.filter(filter)() : await items();
+
             return result as IAbsence[];
         } catch (error) {
             console.error("Error fetching options: ", error);
@@ -82,57 +98,115 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
     }
 
 
-    const initialEvents = async (): Promise<ICallendarEvent[]> => {
-        
+    const calendarEvents = React.useMemo(() => {
         const allAbsences: ICallendarEvent[] = [];
-
-        absences.forEach((absence: IAbsence) => {
+        displayedAbsences.forEach((absence: IAbsence) => {
+            const employee = contacts.find(contact => contact.Id === absence.Employee.Id);
+            const title = employee ? `${employee.FirstName || ''} ${employee.LastName || ''}` : 'Unknown Employee';
             const event: ICallendarEvent = {
-                title: 
-                    contacts.find(contact => contact.Id === absence.Employee.Id)?.FirstName 
-                    + " " + contacts.find(contact => contact.Id === absence.Employee.Id)?.LastName,
+                title: title,
                 start: absence.From.toString(),
                 end: absence.To.toString()
             }
             allAbsences.push(event);
         });
-
         return allAbsences;
-    }
+    }, [displayedAbsences, contacts]);
+
     // #endregion
 
 
-    useEffect(() => {
-        const loadInitialData = async (): Promise<void> => {
-            try {
-                const fetchedAbsences = await fetchAbsences();
-                setAbsences(fetchedAbsences);
-                await fetchAbsenceContacts(fetchedAbsences);
-            } catch (error) {
-                console.error("Error loading absence data: ", error);
-            }
-        };
+    const loadInitialData = async (filter?: string): Promise<void> => {
+        try {
+            const fetchedAbsences = await fetchAbsences(filter);
+            setAbsences(fetchedAbsences);
+            await fetchAbsenceContacts(fetchedAbsences);
+        } catch (error) {
+            console.error("Error loading absence data: ", error);
+        }
+    };
+
+
+    const fetchAbsenceTypes = async (): Promise<void> => {
+        try {
+            // Assumes your list is named 'Absences' and the choice field is 'AbsenceType'
+            const list = sp.web.lists.getByTitle("Absence");
+            const field: IFieldInfo = await list.fields.getByInternalNameOrTitle("AbsenceType")();
     
-        loadInitialData().catch(error => {
+            if (field && field.Choices) {
+                const options: IDropdownOption[] = field.Choices.map(choice => ({
+                    key: choice,
+                    text: choice
+                }));
+                setAbsenceTypeOptions(options);
+            }
+        } catch (error) {
+            console.error("Error fetching absence types: ", error);
+        }
+    }
+
+
+    const onNameChange = (event: React.FormEvent<HTMLInputElement>): void => {
+        setNameText(event.currentTarget.value);
+    }
+
+    const onOptionChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
+        setAbsenceType(option ? option.key : "");
+      };
+
+    const createFilter = (): void => {
+        const filterParts: string[] = [];
+    
+        if (absenceType) {
+            filterParts.push(`(AbsenceType eq '${absenceType}')`);
+        }
+
+        const combinedFilter = filterParts.join(' and ');
+        setActiveFilter(combinedFilter);
+        setActiveNameFilter(nameText);
+    }
+
+    const onClearFilterClick = (): void => {
+        setNameText('');
+        setAbsenceType(undefined);
+        setActiveFilter('');
+        setActiveNameFilter('');
+    }
+
+
+    useEffect(() => {
+        
+        loadInitialData(activeFilter).catch(error => {
             console.error("An error occurred during initial data load:", error);
+        });
+        fetchAbsenceTypes().catch(error => {
+            console.error("An error occurred during absence types load:", error);
         });
     }, []);
 
     useEffect(() => {
-        const loadInitialData = async (): Promise<void> => {
-            try {
-                const fetchedAbsences = await fetchAbsences();
-                setAbsences(fetchedAbsences);
-                await fetchAbsenceContacts(fetchedAbsences);
-            } catch (error) {
-                console.error("Error loading absence data: ", error);
-            }
-        };
+        let filtered: IAbsence[] = absences;
+
+        if (activeNameFilter.trim() !== "") {
+            const nameFilterLower = activeNameFilter.trim().toLowerCase();
+            filtered = absences.filter(absence => {
+                const employee = contacts.find(contact => contact.Id === absence.Employee.Id);
+                if (employee) {
+                    const fullName = `${employee.FirstName || ''} ${employee.LastName || ''}`.toLowerCase();
+                    return fullName.includes(nameFilterLower);
+                }
+                return false; // If employee not found, don't include in filtered list
+            });
+        }
+        setDisplayedAbsences(filtered);
+    }, [absences, contacts, activeNameFilter]);
+
+    useEffect(() => {
     
-        loadInitialData().catch(error => {
+        loadInitialData(activeFilter).catch(error => {
             console.error("An error occurred during initial data load:", error);
         });
-    }, [requestModalOpen, approveModalOpen]);
+    }, [requestModalOpen, approveModalOpen, activeFilter]);
 
 
     const columns: IColumn[] = [
@@ -176,14 +250,35 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
 
 
     return (
-        <div> {/* Add a tab style, one for list view, other for calendar view
-        
-                Make filtering BEFORE the tabs, to filter by names or reason of absence
-                logic should be the same for both, just applying them a bit differently*/}
+        <div> 
+            <div className={styles.filtersContainer}>
+                <TextField label="Name:" placeholder="Enter first or last name..." 
+                    value={nameText} 
+                    onChange={onNameChange} />
+                <Dropdown
+                    label="Absence Type:"
+                    placeholder="Select an Absence Type"
+                    options={absenceTypeOptions}
+                    selectedKey={absenceType}
+                    onChange={onOptionChange}
+                    />
+            </div>
+            <div className={styles.actionsContainer}>
+                <div className={styles.leftActions}>
+                    <PrimaryButton text="Apply Filters" onClick={createFilter} style={{ marginRight: '8px' }} />
+                    <PrimaryButton text="Clear Filters" onClick={onClearFilterClick} />
+                </div>
+                <IconButton
+                    iconProps={{ iconName: 'Refresh' }}
+                    title="Refresh"
+                    ariaLabel="Refresh"
+                    onClick={() => loadInitialData(activeFilter)}
+                />
+            </div>
             <TabsView>
-                <PivotItem headerText='List' itemKey='list'>
+                <PivotItem headerText='List' itemKey='list'> {/* if the TimeType isnt FullDay, display the time too */}
                     <DetailsList
-                        items={absences}
+                        items={displayedAbsences}
                         columns={columns}
                         setKey="set"
                         layoutMode={DetailsListLayoutMode.justified} // 2. Change to fixedColumns
@@ -195,7 +290,11 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
                 <PivotItem headerText='Calendar' itemKey='calendar'>
                     <FullCalendar
                         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-
+                        eventSources={[
+                            { events: calendarEvents }, // User absences
+                            { events: getCzechHolidaysCallendarEvents(new Date().getFullYear()) }, // Holidays for current year
+                            { events: getCzechHolidaysCallendarEvents(new Date().getFullYear() + 1) } // Holidays for next year
+                        ]}
                         headerToolbar={{
                             left: 'title',
                             center: '',
@@ -203,7 +302,6 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
                         }}
 
                         initialView='dayGridMonth'
-                        events={initialEvents}
                 
                         editable={false} 
                         selectable={true}

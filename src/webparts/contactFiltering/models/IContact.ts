@@ -13,4 +13,5 @@ export interface IContact {
     Tags?: ITag[];
     Leader?: IContact;
     BackupLeader?: IContact;
+    TimeOffHours?: number;
 }

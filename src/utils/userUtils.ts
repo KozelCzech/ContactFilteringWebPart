@@ -81,3 +81,18 @@ export const fetchAbsencesAwaitingApproval = async (sp: SPFI, user: IContact): P
             return [];
         }
     };
+
+export const fetchAbsences = async (sp: SPFI, contact: IContact): Promise<IAbsence[]> => {
+        try {
+            const result = await sp.web.lists.getByTitle('Absence').items
+                .select('Id', 'Title', 
+                    'Employee/Id', 'Employee/Title', 
+                    'AbsenceType', 'To',
+                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee').filter(`Employee/Id eq '${contact.Id}'`)();
+    
+            return result as IAbsence[];
+        } catch (exception){
+            console.error("Error fetching absences: ", exception);
+            return [];
+        }
+    }

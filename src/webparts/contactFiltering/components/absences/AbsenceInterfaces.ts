@@ -12,4 +12,5 @@ export interface IAbsence {
     NoteForLeader: string;
     Approved: boolean;
     Approvee: IContact;
+    TimeType: string;
 }

@@ -10,7 +10,6 @@ import { IContact } from '../models/IContact';
 import ContactCard from './ContactCard';
 import TagHolder from './tagFolder/TagHolder';
 import Modal from './subComponents/modal/Modal';
-import Collapsible from './subComponents/collapsible/Collapsible';
 import Paginator from './subComponents/paginator/Paginator';
 import AbsenceList from './absences/AbsenceList/AbsenceList';
 import ContactPage from './contactPage/ContactPage';
@@ -183,7 +182,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       const result = await props.sp.web.lists.getByTitle("ContactFilteringTest").items
       .select(
         'Id', 'Title', 'FirstName', 'LastName', 'Department', 'Image', 'PhoneNumber', 'Email', 
-        "Tags/Id", "Tags/TagName", "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title"
+        "Tags/Id", "Tags/TagName", "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title", "TimeOffHours"
       ).expand("Tags", "Leader", "BackupLeader").filter('Email eq \'' + user.Email + '\'')();
       setCurrentUser(result[0] as IContact);
 
@@ -427,21 +426,26 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
               </Paginator>
             )}
           </div>
-          {isTagCreator && (
-            <Collapsible title="Tags">
-              <TagHolder sp={props.sp} webUrl={props.webAbsoluteUrl} />
-            </Collapsible>
-          )}
         </ PivotItem>
         <PivotItem headerText='Absences' itemKey='absences'>
           <AbsenceList sp={props.sp} requestModalOpen={requestAbsenceModalOpen} approveModalOpen={approveAbsenceModalOpen}/>
         </PivotItem>
+        {isTagCreator && <PivotItem headerText='Tags' itemKey='tags'>
+          <TagHolder sp={props.sp} webUrl={props.webAbsoluteUrl} />
+        </PivotItem>}
       </TabsView>
       <Modal isOpen={userModalOpen} onClose={handleCloseUserPageModal}>
-        {currentUser && <UserPage sp={props.sp} contact={currentUser} webAbsoluteUrl={props.webAbsoluteUrl} onUpdate={handleUserPageUpdate}/>}
+        {currentUser && <UserPage sp={props.sp} 
+          contact={currentUser} 
+          webAbsoluteUrl={props.webAbsoluteUrl} 
+          isTagCreator={isTagCreator} onUpdate={handleUserPageUpdate}/>}
       </Modal>
       <Modal isOpen={!!selectedContact} onClose={handleCloseContactModal}>
-        {selectedContact && <ContactPage sp={props.sp} contact={selectedContact} webAbsoluteUrl={props.webAbsoluteUrl} onUpdate={handleContactUpdate} />}
+        {selectedContact && <ContactPage sp={props.sp} 
+          contact={selectedContact} 
+          webAbsoluteUrl={props.webAbsoluteUrl} 
+          isTagCreator={isTagCreator} 
+          onUpdate={handleContactUpdate} />}
       </Modal>
       <Modal isOpen={requestAbsenceModalOpen} onClose={handleRequestAbsenceUpdate}>
         {currentUser && <RequestAbsence user={currentUser} sp={props.sp} onUpdate={handleRequestAbsenceUpdate} /> }

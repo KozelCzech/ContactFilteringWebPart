@@ -10,7 +10,9 @@ import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/fields";
 import { IFieldInfo } from '@pnp/sp/fields';
+import { addDays } from '@fluentui/date-time-utilities';
 import { getLeaderInfo } from '../../../../../utils/userUtils';
+import { getCzechHolidays } from '../../../../../utils/dateUtils';
 
 
 export interface IRequestAbsenceProps {
@@ -45,7 +47,8 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             NoteForLeader: '',
             Approved: false,
             Title: '',
-            Approvee: {Id: 0, Title: ''}
+            Approvee: {Id: 0, Title: ''},
+            TimeType: ''
         };
     });
     const [ errors, setErrors ] = useState<IAbsenceValidationErrors>({});
@@ -107,7 +110,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     }
 
 
-    const addAbsence = async (): Promise<void> => {
+    const addAbsence = async (PTOHours: number): Promise<void> => {
         try {
             const list = sp.web.lists.getByTitle("Absence");
             // When adding an item with a lookup field, you must use the 'FieldNameId' syntax.
@@ -120,6 +123,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                 To: newAbsence.To,
                 Notes: newAbsence.Notes,
                 NoteForLeader: newAbsence.NoteForLeader,
+                HoursUsed: PTOHours
             };
             await list.items.add(itemToAdd);
             //Need to request approval after being created
@@ -149,6 +153,37 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         }
     }
 
+    const getHolidaysForDateRange = (startYear: number, endYear: number): Date[] => {
+        let allHolidays: Date[] = [];
+        for (let year = startYear; year <= endYear; year++) {
+            const holidaysForYear = getCzechHolidays(year).map(h => h.date);
+            allHolidays = allHolidays.concat(holidaysForYear);
+        }
+        return allHolidays;
+    };
+
+    const isWeekend = (date: Date): boolean => {
+        const day = date.getDay();
+        return day === 6 || day === 0; // 6 = Saturday, 0 = Sunday
+    };
+
+    const calculateWorkdays = async (from: Date, to: Date): Promise<number> => {
+        const holidays = getHolidaysForDateRange(from.getFullYear(), to.getFullYear());
+        let workdays = 0;
+        let currentDate = new Date(from);
+    
+        while (currentDate <= to) {
+            if (!isWeekend(currentDate)) {
+                const currentUTCDate = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()));
+                const isHoliday = holidays.some(holiday => holiday.getTime() === currentUTCDate.getTime());
+                if (!isHoliday) {
+                    workdays++;
+                }
+            }
+            currentDate = addDays(currentDate, 1);
+        }
+        return workdays;
+    };
 
     const handleSaveButton = async (): Promise<void> => {
         const validationErrors: IAbsenceValidationErrors = {};
@@ -183,7 +218,10 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         }
         // --- End of Validation ---
 
-        await addAbsence();
+        const workdays = await calculateWorkdays(newAbsence.From, newAbsence.To);
+        const ptoHours = workdays * 8; // Assuming 8 hours per workday
+
+        await addAbsence(ptoHours);
 
         onUpdate();
     }    
@@ -256,7 +294,6 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                         value={newAbsence.From}
                         onSelectDate={onFromChange} />
                     {errors.from && <p className={styles.errorMessage}>{errors.from}</p>}
-                    {/* TODO: Add radio buttons for full/half day */}
                 </div>
                 <div className={styles.dateRow}>
                     <DatePicker
@@ -268,8 +305,8 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                         value={newAbsence.To}
                         onSelectDate={onToChange} />
                     {errors.to && <p className={styles.errorMessage}>{errors.to}</p>}
-                    {/* TODO: Add radio buttons for full/half day */}
                 </div>
+                    
                 <TextField label='Note for CoHe' multiline rows={3} onChange={onNoteChange} />
                 <TextField label='Note for leader' multiline rows={3} onChange={onNoteForLeaderChange} />
             </div>
@@ -280,6 +317,34 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                     onClick={handleSaveButton} />
                 <DefaultButton text='Cancel' onClick={handleCloseButton} />
             </div>
+            {/* TODO: Use TimeType field to get the amount of time spent on the time off
+                     FullDay = 8hrs, 
+                     halfDayAM is 4 hours in the morning (or based on the employment time),
+                     halfDayPM is 4 hours in the afternoon, 
+                     hourly is gonna have a time picker
+                     
+                     time off goes from one year to the next for up to 3 years, keep it stored somewhere (make it customisable)
+                        add it to the base amount each year
+                        the priority for decreasing available time off comes from the oldest available PTO
+
+                        if someone starts later in the year or comes in later the available PTO is reduced!!! half a year is 12.5 days etc
+                        
+                        DONT forget about weekends, and holidays + Easter(PITA)
+                        
+                        include sick days and homeoffice doesnt take away from time off
+
+                        Users can have different types of employement 
+                            for example only 6 hours, in that case half day would be 3 hours instead of 4
+                            calculate it based on emplyement type
+
+                            sometimes emplyment can change mid year so store it in a way that allows for that
+                            Add this in the Uvazky sharepoint list
+                                If a user has multiple Employments for the same company the amount of work per day is added together
+
+
+                    
+                        Decide where leaders decide PTO time themselves and where its automatically calculated
+                    */}
         </div>
   );
 

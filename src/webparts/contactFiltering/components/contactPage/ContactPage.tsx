@@ -7,22 +7,24 @@ import { IContact } from '../../models/IContact';
 import { ITag } from '../tagFolder/TagHolder';
 import { useEffect, useState } from 'react';
 import { SPFI } from '@pnp/sp';
-import { ComboBox, ConstrainMode, DefaultButton, DetailsList, DetailsListLayoutMode, IColumn, IComboBox, IComboBoxOption, PrimaryButton, SelectionMode, Spinner } from '@fluentui/react';
+import { ComboBox, ConstrainMode, DefaultButton, DetailsList, DetailsListLayoutMode, IColumn, IComboBox, IComboBoxOption, PivotItem, PrimaryButton, SelectionMode, Spinner } from '@fluentui/react';
 import { getContrastColor } from '../../../../utils/colorUtils';import { CheckmarkFilled, DismissFilled } from '@fluentui/react-icons';
 import { IAbsence } from '../absences/AbsenceInterfaces';
 import { formatDate } from '../../../../utils/dateUtils';
+import TabsView from '../subComponents/tabsView/tabsView';
 
 
 export interface IContactPageProps {
     contact: IContact;
     webAbsoluteUrl: string;
     sp: SPFI;
+    isTagCreator: boolean;
     onUpdate: () => void;
 }
 
 
 const ContactPage: React.FC<IContactPageProps> = (props) => {
-    const { sp, contact, webAbsoluteUrl, onUpdate } = props;
+    const { sp, contact, webAbsoluteUrl, isTagCreator, onUpdate } = props;
     const [ tags, setTags ] = useState<ITag[]>([]);
     const [ tagsLoading, setTagsLoading ] = useState<boolean>(false);
     const [ allTags, setAllTags ] = useState<ITag[]>([]);
@@ -252,66 +254,73 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                     <p>Phone Number: {contact.PhoneNumber}</p>
                     <p>Email: {contact.Email}</p>
                 </div>
-                <div className={styles.tagsSection}>
-                    <h4>Tags</h4>
-                    <div className={styles.tagHolder}>
-                        {tagsLoading ?
-                            <Spinner label="Loading tags..." />
-                            :
-                            <div className={styles.tagSection}>
-                                <div className={styles.addTagContainer}>
-                                    <ComboBox
-                                        className={styles.comboBoxContainer}
-                                        autoComplete='on'
-                                        allowFreeInput
-                                        dropdownMaxWidth={300}
-                                        options={options}
-                                        selectedKey={selectedKey}
-                                        onChange={onSelectChange}
-                                        text={comboBoxText}
-                                    />
-                                    <button onClick={addTag} className={styles.addButton} disabled={!selectedKey}>+</button>
-                                </div>
-                                <div className={styles.tagList}>
-                                    {tags.map((tag: ITag) => (
-                                        <div key={tag.Id}>
-                                            <div
-                                                className={styles.tag}
-                                                style={{
-                                                    backgroundColor: tag.tagColor,
-                                                    color: getContrastColor(tag.tagColor)
-                                                }}>
-                                                <p
-                                                    className={styles.tagName}
-                                                    title={tag.Comment ? tag.Comment : tag.TagName}
-                                                >
-                                                    {tag.TagName}
-                                                </p>
-                                                <button onClick={() => removeTag(tag)}>
-                                                    <DismissFilled />
-                                                </button>
-                                            </ div>
+                    <TabsView>
+                        <PivotItem headerText='Tags' itemKey='tags'>
+                        <div className={styles.tagsSection}>
+                            <h4>Tags</h4>
+                            <div className={styles.tagHolder}>
+                                {tagsLoading ?
+                                    <Spinner label="Loading tags..." />
+                                    :
+                                    <div className={styles.tagSection}>
+                                        { isTagCreator && <div className={styles.addTagContainer}>
+                                            <ComboBox
+                                                className={styles.comboBoxContainer}
+                                                autoComplete='on'
+                                                allowFreeInput
+                                                dropdownMaxWidth={300}
+                                                options={options}
+                                                selectedKey={selectedKey}
+                                                onChange={onSelectChange}
+                                                text={comboBoxText}
+                                            />
+                                            <button onClick={addTag} className={styles.addButton} disabled={!selectedKey}>+</button>
+                                        </div>}
+                                        <div className={styles.tagList}>
+                                            {tags.map((tag: ITag) => (
+                                                <div key={tag.Id}>
+                                                    <div
+                                                        className={styles.tag}
+                                                        style={{
+                                                            backgroundColor: tag.tagColor,
+                                                            color: getContrastColor(tag.tagColor)
+                                                        }}>
+                                                        <p
+                                                            className={styles.tagName}
+                                                            title={tag.Comment ? tag.Comment : tag.TagName}
+                                                        >
+                                                            {tag.TagName}
+                                                        </p>
+                                                        { isTagCreator && <button onClick={() => removeTag(tag)}>
+                                                            <DismissFilled />
+                                                        </button>}
+                                                    </ div>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                            </ div>
-                        }
-                    </div>
+                                    </ div>
+                                }
+                            </div>
+                            { isTagCreator &&<div className={styles.footer}>
+                                <PrimaryButton text="Save Changes" onClick={saveChanges} style={{ marginRight: '8px' }} />
+                                <DefaultButton text="Revert Changes" onClick={cancelChanges} />
+                            </div>}
+                        </div>
+                        </ PivotItem>
+                        <PivotItem headerText='Absences' itemKey='absences'>
+                            <DetailsList
+                                items={absences}
+                                columns={columns}
+                                setKey="set"
+                                layoutMode={DetailsListLayoutMode.justified} // 2. Change to fixedColumns
+                                constrainMode={ConstrainMode.horizontalConstrained}
+                                selectionMode={SelectionMode.none} // Or SelectionMode.single, etc.
+                                isHeaderVisible={true} 
+                                compact={true}/>
+                        </PivotItem>
+                    </TabsView>
                 </div>
-            </div>
-            <div className={styles.footer}>
-                <PrimaryButton text="Save Changes" onClick={saveChanges} style={{ marginRight: '8px' }} />
-                <DefaultButton text="Revert Changes" onClick={cancelChanges} />
-            </div>
-            <DetailsList
-                        items={absences}
-                        columns={columns}
-                        setKey="set"
-                        layoutMode={DetailsListLayoutMode.justified} // 2. Change to fixedColumns
-                        constrainMode={ConstrainMode.horizontalConstrained}
-                        selectionMode={SelectionMode.none} // Or SelectionMode.single, etc.
-                        isHeaderVisible={true} 
-                        compact={true}/>
+            
         </div>
     );
 }

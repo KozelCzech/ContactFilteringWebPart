@@ -34,3 +34,20 @@
     background-color: #A85A00; // Dark orange dot
   }
 }
+
+.filtersContainer {
+  margin-bottom: 16px;
+  display: flex; /* Example: if you want filters side-by-side later */
+  gap: 16px; /* Space between filter elements if they are flex items */
+}
+
+.actionsContainer {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.leftActions {
+  display: flex;
+}

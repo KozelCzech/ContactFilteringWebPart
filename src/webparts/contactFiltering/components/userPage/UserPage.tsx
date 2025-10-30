@@ -7,22 +7,26 @@ import { IContact } from '../../models/IContact';
 import { ITag } from '../tagFolder/TagHolder';
 import { useEffect, useState } from 'react';
 import { SPFI } from '@pnp/sp';
-import { ComboBox, ConstrainMode, DefaultButton, DetailsList, DetailsListLayoutMode, IColumn, IComboBox, IComboBoxOption, PrimaryButton, SelectionMode, Spinner } from '@fluentui/react';
+import { ComboBox, ConstrainMode, DefaultButton, DetailsList, DetailsListLayoutMode, IColumn, IComboBox, IComboBoxOption, PivotItem, PrimaryButton, SelectionMode, Spinner } from '@fluentui/react';
 import { getContrastColor } from '../../../../utils/colorUtils';import { CheckmarkFilled, DismissFilled } from '@fluentui/react-icons';
 import { IAbsence } from '../absences/AbsenceInterfaces';
 import { formatDate } from '../../../../utils/dateUtils';
+import TabsView from '../subComponents/tabsView/tabsView';
+import { fetchAbsences } from '../../../../utils/userUtils';
+import { PTOHoursLeft } from '../../../../utils/ptoUtils';
 
 
 export interface IUserPageProps {
     contact: IContact;
     webAbsoluteUrl: string;
     sp: SPFI;
+    isTagCreator: boolean;
     onUpdate: () => void;
 }
 
 
 const UserPage: React.FC<IUserPageProps> = (props) => {
-    const { sp, contact, webAbsoluteUrl, onUpdate } = props;
+    const { sp, contact, webAbsoluteUrl, isTagCreator, onUpdate } = props;
     const [ tags, setTags ] = useState<ITag[]>([]);
     const [ tagsLoading, setTagsLoading ] = useState<boolean>(false);
     const [ allTags, setAllTags ] = useState<ITag[]>([]);
@@ -32,8 +36,7 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
     const [ comboBoxText, setComboBoxText ] = useState<string>('');
 
     const [ absences, setAbsences ] = useState<IAbsence[]>([]);
-
-
+    const [ timeOffLeft, setTimeOffLeft ] = useState<number>(contact.TimeOffHours || 0);
 
     const listName = "ContactFilteringTest";
     const attachmentId = contact.Id;
@@ -57,19 +60,7 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
     }
 
 
-    const fetchAbsences = async (): Promise<void> => {
-        try {
-            const result = await sp.web.lists.getByTitle('Absence').items
-                .select('Id', 'Title', 
-                    'Employee/Id', 'Employee/Title', 
-                    'AbsenceType', 'To',
-                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee').filter(`Employee/Id eq '${contact.Id}'`)();
     
-            setAbsences(result as IAbsence[]);
-        } catch (exception){
-            console.error("Error fetching absences: ", exception);
-        }
-    }
 
 
     // #region Tags
@@ -94,7 +85,9 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
             fetchOptions(fetchedTags).catch(error => {
                 console.error("Error fetching options: ", error);
             });
-            fetchAbsences().catch(error => {
+            fetchAbsences(sp, contact).then(absences => {
+                setAbsences(absences);
+                }).catch(error => {
                 console.error("Error fetching absences: ", error);
             });
         } catch (error) {
@@ -194,12 +187,20 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
             setComboBoxText(value as string);
         }
     };
+    // TODO: Show All users time offs in current year and upcoming but dont show full history in main list
 
 
     useEffect(() => {
         fetchTags().catch(error => {
             console.log("Error fetching tags: ", error);
         });
+        
+        PTOHoursLeft(sp, contact.Id).then(hours => {
+            setTimeOffLeft(hours);
+        }).catch(error => {
+            console.log("Error fetching PTO hours: ", error);
+        });       
+    
         
     }, [])
 
@@ -251,67 +252,76 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
                     <p>Phone Number: {contact.PhoneNumber}</p>
                     <p>Email: {contact.Email}</p>
                 </div>
-                <div className={styles.tagsSection}>
-                    <h4>Tags</h4>
-                    <div className={styles.tagHolder}>
-                        {tagsLoading ?
-                            <Spinner label="Loading tags..." />
-                            :
-                            <div className={styles.tagSection}>
-                                <div className={styles.addTagContainer}>
-                                    <ComboBox
-                                        className={styles.comboBoxContainer}
-                                        autoComplete='on'
-                                        allowFreeInput
-                                        dropdownMaxWidth={300}
-                                        options={options}
-                                        selectedKey={selectedKey}
-                                        onChange={onSelectChange}
-                                        text={comboBoxText}
-                                    />
-                                    <button onClick={addTag} className={styles.addButton} disabled={!selectedKey}>+</button>
-                                </div>
-                                <div className={styles.tagList}>
-                                    {tags.map((tag: ITag) => (
-                                        <div key={tag.Id}>
-                                            <div
-                                                className={styles.tag}
-                                                style={{
-                                                    backgroundColor: tag.tagColor,
-                                                    color: getContrastColor(tag.tagColor)
-                                                }}>
-                                                <p
-                                                    className={styles.tagName}
-                                                    title={tag.Comment ? tag.Comment : tag.TagName}
-                                                >
-                                                    {tag.TagName}
-                                                </p>
-                                                <button onClick={() => removeTag(tag)}>
-                                                    <DismissFilled />
-                                                </button>
-                                            </ div>
+                    <TabsView>
+                        <PivotItem headerText='Tags' itemKey='tags'>
+                        <div className={styles.tagsSection}>
+                            <h4>Tags</h4>
+                            <div className={styles.tagHolder}>
+                                {tagsLoading ?
+                                    <Spinner label="Loading tags..." />
+                                    :
+                                    <div className={styles.tagSection}>
+                                        { isTagCreator && <div className={styles.addTagContainer}>
+                                            <ComboBox
+                                                className={styles.comboBoxContainer}
+                                                autoComplete='on'
+                                                allowFreeInput
+                                                dropdownMaxWidth={300}
+                                                options={options}
+                                                selectedKey={selectedKey}
+                                                onChange={onSelectChange}
+                                                text={comboBoxText}
+                                            />
+                                            <button onClick={addTag} className={styles.addButton} disabled={!selectedKey}>+</button>
+                                        </div>}
+                                        <div className={styles.tagList}>
+                                            {tags.map((tag: ITag) => (
+                                                <div key={tag.Id}>
+                                                    <div
+                                                        className={styles.tag}
+                                                        style={{
+                                                            backgroundColor: tag.tagColor,
+                                                            color: getContrastColor(tag.tagColor)
+                                                        }}>
+                                                        <p
+                                                            className={styles.tagName}
+                                                            title={tag.Comment ? tag.Comment : tag.TagName}
+                                                        >
+                                                            {tag.TagName}
+                                                        </p>
+                                                        { isTagCreator && <button onClick={() => removeTag(tag)}>
+                                                            <DismissFilled />
+                                                        </button>}
+                                                    </ div>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                            </ div>
-                        }
-                    </div>
+                                    </ div>
+                                }
+                            </div>
+                            { isTagCreator &&<div className={styles.footer}>
+                                <PrimaryButton text="Save Changes" onClick={saveChanges} style={{ marginRight: '8px' }} />
+                                <DefaultButton text="Revert Changes" onClick={cancelChanges} />
+                            </div>}
+                        </div>
+                        </ PivotItem>
+                        <PivotItem headerText='Absences' itemKey='absences'>
+                            <div>
+                                Time off left: {timeOffLeft} hours
+                            </div>
+                            <DetailsList
+                                items={absences}
+                                columns={columns}
+                                setKey="set"
+                                layoutMode={DetailsListLayoutMode.justified} // 2. Change to fixedColumns
+                                constrainMode={ConstrainMode.horizontalConstrained}
+                                selectionMode={SelectionMode.none} // Or SelectionMode.single, etc.
+                                isHeaderVisible={true} 
+                                compact={true}/>
+                        </PivotItem>
+                    </TabsView>
                 </div>
-            </div>
-            <div className={styles.footer}>
-                <PrimaryButton text="Save Changes" onClick={saveChanges} style={{ marginRight: '8px' }} />
-                <DefaultButton text="Revert Changes" onClick={cancelChanges} />
-            </div>
-            { absences.length > 0 && 
-            <DetailsList
-                        items={absences}
-                        columns={columns}
-                        setKey="set"
-                        layoutMode={DetailsListLayoutMode.justified} // 2. Change to fixedColumns
-                        constrainMode={ConstrainMode.horizontalConstrained}
-                        selectionMode={SelectionMode.none} // Or SelectionMode.single, etc.
-                        isHeaderVisible={true} 
-                        compact={true}/> }
+            
         </div>
     );
 }
