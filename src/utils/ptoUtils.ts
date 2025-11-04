@@ -39,7 +39,6 @@ export const PTOHoursLeft = async (sp: SPFI, employeeId: number): Promise<number
             )
             .expand('Employee')
             .filter('Employee/Id eq ' + employeeId)();
-            console.log("Stored PTO: ", storedPTOHours);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         storedPTOHours.forEach((item: storedPTOHours) => {
             if (!item.ValidFrom || !item.PTOAmount) return;
@@ -67,11 +66,12 @@ export const PTOHoursLeft = async (sp: SPFI, employeeId: number): Promise<number
             )
             .expand('Employee')
             .filter(
-                'Employee/Id eq ' + employeeId +
-                ' and YearOfUse eq ' + new Date().getFullYear()
+                'Employee/Id eq ' + employeeId
             )();
-            console.log("used PTO: ", usedPTOHours);
+
         usedPTOHours.forEach((item: usedPTOHours) => {
+            if (new Date(item.YearOfUse).getFullYear() !== new Date().getFullYear()) return;
+
             totalPTOHours -= item.HoursUsed;
         });
 

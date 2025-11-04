@@ -13,4 +13,5 @@ export interface IAbsence {
     Approved: boolean;
     Approvee: IContact;
     TimeType: string;
+    HoursUsed: number;
 }

@@ -183,7 +183,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       .select(
         'Id', 'Title', 'FirstName', 'LastName', 'Department', 'Image', 'PhoneNumber', 'Email', 
         "Tags/Id", "Tags/TagName", "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title", "TimeOffHours"
-      ).expand("Tags", "Leader", "BackupLeader").filter('Email eq \'' + user.Email + '\'')();
+      ).expand("Tags", "Leader", "BackupLeader").filter(`Email eq '${user.Email}'`)();
       setCurrentUser(result[0] as IContact);
 
 
@@ -451,7 +451,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
         {currentUser && <RequestAbsence user={currentUser} sp={props.sp} onUpdate={handleRequestAbsenceUpdate} /> }
       </Modal>
       <Modal isOpen={approveAbsenceModalOpen} onClose={handleApproveAbsenceUpdate}>
-        {currentUser && <ApproveAbsence sp={props.sp} user={currentUser} />}
+        {currentUser && <ApproveAbsence sp={props.sp} user={currentUser} onUpdate={handleApproveAbsenceUpdate}/>}
       </ Modal>
         
     </div>

@@ -23,7 +23,33 @@ export interface ICommitment {
     Title: string;
     Employee: IContact;
     Position: IPosition;
+    From: Date;
+    To?: Date;
     MainCommitment: boolean;
+    WorkHoursPerDay: number;
+}
+
+
+export const fetchUserWorkHours = async (sp: SPFI, userId: number): Promise<number> => {
+    try {
+        const results = await sp.web.lists.getByTitle('Uvazky').items
+            .select(
+                "Id", "Title", "WorkHoursPerDay", "MainCommitment", "From", "To",
+                "Employee/Id", "Employee/Title",
+                "Position/Id", "Position/Title"
+            )
+            .expand("Employee", "Position")
+            .filter(`Employee/Id eq ${userId}`)();
+
+        const allCommitments = results as ICommitment[];
+        const today = new Date();
+        const activeCommitment = allCommitments.find(c => new Date(c.From) <= today && (!c.To || new Date(c.To) >= today) && c.MainCommitment === true);
+        return activeCommitment?.WorkHoursPerDay || 8; // Fallback to 8 hours if not found
+
+    } catch (exception) {
+        console.error("Error fetching user work hours: ", exception);
+        return 0;
+    }
 }
 
 
@@ -71,7 +97,7 @@ export const fetchAbsencesAwaitingApproval = async (sp: SPFI, user: IContact): P
                     'Employee/Id', 'Employee/Title', 
                     'AbsenceType', 'To',
                     'From', 'Notes', 'NoteForLeader',
-                    'Approved', 'Approvee/Id', 'Approvee/Title')
+                    'Approved', 'Approvee/Id', 'Approvee/Title', 'HoursUsed')
                 .expand('Employee, Approvee')
                 .filter('Approved eq false and Approvee/Id eq ' + user.Id)();
                     

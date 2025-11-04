@@ -1,7 +1,7 @@
 import * as React from 'react';
 import styles from './RequestAbsence.module.scss';
 import { IContact } from '../../../models/IContact';
-import { DatePicker, DayOfWeek, DefaultButton, Dropdown, IDropdownOption, PrimaryButton, TextField } from '@fluentui/react';
+import { DatePicker, DayOfWeek, DefaultButton, Dropdown, IDropdownOption, PrimaryButton, TextField, IChoiceGroupOption, ChoiceGroup } from '@fluentui/react';
 import { CzechDatePickerStrings } from '../../../localization/cs-CZ'
 import { IAbsence } from '../AbsenceInterfaces';
 import { useEffect, useState } from 'react';
@@ -11,7 +11,7 @@ import "@pnp/sp/lists";
 import "@pnp/sp/fields";
 import { IFieldInfo } from '@pnp/sp/fields';
 import { addDays } from '@fluentui/date-time-utilities';
-import { getLeaderInfo } from '../../../../../utils/userUtils';
+import { fetchUserWorkHours, getLeaderInfo } from '../../../../../utils/userUtils';
 import { getCzechHolidays } from '../../../../../utils/dateUtils';
 
 
@@ -26,6 +26,8 @@ interface IAbsenceValidationErrors {
     from?: string;
     to?: string;
 }
+
+type TimeSelectionType = 'FullDay' | 'HalfDayAM' | 'HalfDayPM' | 'Hourly';
 
 
 const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
@@ -48,11 +50,30 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             Approved: false,
             Title: '',
             Approvee: {Id: 0, Title: ''},
-            TimeType: ''
+            TimeType: '',
+            HoursUsed: 0
         };
     });
     const [ errors, setErrors ] = useState<IAbsenceValidationErrors>({});
     const [ absenceTypeOptions, setAbsenceTypeOptions ] = useState<IDropdownOption[]>([]);
+    const [ startDayTimeType, setStartDayTimeType ] = useState<TimeSelectionType>('FullDay');
+    const [ endDayTimeType, setEndDayTimeType ] = useState<TimeSelectionType>('FullDay');
+    const [ startDayHours, setStartDayHours ] = useState<number>(8);
+    const [ endDayHours, setEndDayHours ] = useState<number>(8);
+
+    const timeTypeOptions: IChoiceGroupOption[] = [
+        { key: 'FullDay', text: 'Celý den' },
+        { key: 'HalfDayAM', text: 'Dopoledne (AM)' },
+        { key: 'HalfDayPM', text: 'Odpoledne (PM)' },
+        { key: 'Hourly', text: 'Hodinový' },
+    ];
+
+    const onStartDayTimeTypeChange = (ev?: React.FormEvent<HTMLElement | HTMLInputElement>, option?: IChoiceGroupOption): void => {
+        if (option) setStartDayTimeType(option.key as TimeSelectionType);
+    };
+    const onEndDayTimeTypeChange = (ev?: React.FormEvent<HTMLElement | HTMLInputElement>, option?: IChoiceGroupOption): void => {
+        if (option) setEndDayTimeType(option.key as TimeSelectionType);
+    };
 
 
     const isOnLeave = async (personId: number): Promise<boolean> => {
@@ -218,8 +239,39 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         }
         // --- End of Validation ---
 
-        const workdays = await calculateWorkdays(newAbsence.From, newAbsence.To);
-        const ptoHours = workdays * 8; // Assuming 8 hours per workday
+
+        const workDayHours: number = await fetchUserWorkHours(sp, user.Id);
+        const halfDayHours: number = workDayHours / 2;
+        
+        const from = newAbsence.From;
+        const to = newAbsence.To;
+
+        const isSameDay = from.toDateString() === to.toDateString();
+        const workdays = await calculateWorkdays(from, to);
+        let ptoHours = 0;
+
+        if (workdays === 0) {
+            ptoHours = 0;
+        } else if (isSameDay) {
+            if (startDayTimeType === 'FullDay') ptoHours = workDayHours;
+            else if (startDayTimeType === 'HalfDayAM' || startDayTimeType === 'HalfDayPM') ptoHours = halfDayHours;
+            else if (startDayTimeType === 'Hourly') ptoHours = startDayHours;
+        } else {
+            // Full days in between
+            ptoHours = (workdays > 2) ? (workdays - 2) * workDayHours : 0;
+
+            // Start day hours
+            if (startDayTimeType === 'FullDay') ptoHours += workDayHours;
+            else if (startDayTimeType === 'HalfDayAM' || startDayTimeType === 'HalfDayPM') ptoHours += halfDayHours;
+            else if (startDayTimeType === 'Hourly') ptoHours += startDayHours;
+
+            // End day hours
+            if (endDayTimeType === 'FullDay') ptoHours += workDayHours;
+            else if (endDayTimeType === 'HalfDayAM' || endDayTimeType === 'HalfDayPM') ptoHours += halfDayHours;
+            else if (endDayTimeType === 'Hourly') ptoHours += endDayHours;
+        }
+
+        // TODO: Check if day off type can deduct PTO
 
         await addAbsence(ptoHours);
 
@@ -241,19 +293,51 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
     const onToChange = (date: Date | null | undefined): void => {
         if (date) {
-            date.setHours(23, 59, 59, 999); // Set to the end of the day
+            const newToDate = new Date(newAbsence.To);
+            newToDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+
+            switch (endDayTimeType) {
+                case 'FullDay':
+                    newToDate.setHours(23, 59, 59, 999);
+                    break;
+                case 'HalfDayAM':
+                    newToDate.setHours(12, 0, 0, 0); // Ends at noon
+                    break;
+                case 'HalfDayPM':
+                    newToDate.setHours(23, 59, 59, 999); // Assumes PM is afternoon until end of day
+                    break;
+                case 'Hourly':
+                    // Time is set by TimePicker, just ensure date part is correct
+                    break;
+            }
+
             setErrors(prev => ({ ...prev, to: undefined }));
-            console.log("Date To: " + date.toString());
-            setNewAbsence(prev => ({ ...prev, To: date }));
+            setNewAbsence(prev => ({ ...prev, To: newToDate }));
         }
     }
 
     const onFromChange = (date: Date | null | undefined): void => {
         if (date) {
-            date.setHours(0, 0, 0, 0); // Set to the beginning of the day
+            const newFromDate = new Date(newAbsence.From);
+            newFromDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+
+            switch (startDayTimeType) {
+                case 'FullDay':
+                    newFromDate.setHours(0, 0, 0, 0);
+                    break;
+                case 'HalfDayAM':
+                    newFromDate.setHours(0, 0, 0, 0); // Starts at beginning of day
+                    break;
+                case 'HalfDayPM':
+                    newFromDate.setHours(12, 0, 0, 0); // Starts at noon
+                    break;
+                case 'Hourly':
+                    // Time is set by TimePicker, just ensure date part is correct
+                    break;
+            }
+
             setErrors(prev => ({ ...prev, from: undefined }));
-            console.log("Date From: " + date.toString());
-            setNewAbsence(prev => ({ ...prev, From: date }));
+            setNewAbsence(prev => ({ ...prev, From: newFromDate }));
         }
     }
 
@@ -292,7 +376,18 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                         label='From'
                         strings={CzechDatePickerStrings}
                         value={newAbsence.From}
-                        onSelectDate={onFromChange} />
+                        onSelectDate={onFromChange}
+                        minDate={new Date()}/>
+                    <ChoiceGroup selectedKey={startDayTimeType} options={timeTypeOptions} onChange={onStartDayTimeTypeChange} />
+                    {startDayTimeType === 'Hourly' && ( // Replaced TimePicker with TextField for hours
+                        <TextField
+                            label="Hours"
+                            type="number"
+                            value={startDayHours.toString()}
+                            onChange={(ev, val) => setStartDayHours(Number(val) || 0)}
+                            min={1}
+                        />
+                    )}
                     {errors.from && <p className={styles.errorMessage}>{errors.from}</p>}
                 </div>
                 <div className={styles.dateRow}>
@@ -303,7 +398,18 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                         label='To'
                         strings={CzechDatePickerStrings}
                         value={newAbsence.To}
-                        onSelectDate={onToChange} />
+                        onSelectDate={onToChange}
+                        minDate={newAbsence.From}/>
+                    <ChoiceGroup selectedKey={endDayTimeType} options={timeTypeOptions} onChange={onEndDayTimeTypeChange} />
+                    {endDayTimeType === 'Hourly' && ( // Replaced TimePicker with TextField for hours
+                        <TextField
+                            label="Hours"
+                            type="number"
+                            value={endDayHours.toString()}
+                            onChange={(ev, val) => setEndDayHours(Number(val) || 0)}
+                            min={1}
+                        />
+                    )}
                     {errors.to && <p className={styles.errorMessage}>{errors.to}</p>}
                 </div>
                     

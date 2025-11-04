@@ -11,14 +11,22 @@ import { fetchAbsencesAwaitingApproval } from '../../../../../utils/userUtils';
 interface IApproveAbsenceProps{
     sp: SPFI;
     user: IContact;
+    onUpdate: () => void;
+}
+
+interface IUsedPTOHours {
+    Id: number;
+    Title: string;
+    Employee: IContact;
+    YearOfUse: Date;
+    HoursUsed: number;
 }
 
 const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
-    const { sp, user } = props;
+    const { sp, user, onUpdate } = props;
     const [ absencesToApprove, setAbsencesToApprove ] = useState<IAbsence[]>([]);
     const [ contacts, setContacts ] = useState<IContact[]>([]);
-
-
+    const [ isLoaded, setIsLoaded ] = useState<boolean>(false); 
     
 
 
@@ -46,14 +54,36 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
         }
     };
 
-    const handleApprove = async (absenceId: number): Promise<void> => {
+    const addUsedHours = async (hoursUsedUp: number): Promise<void> => {
         try {
+            const results = await sp.web.lists.getByTitle('UsedPTOHours').items
+                .select('Id', 'Title',
+                     'Employee/Id', 'Employee/Title',
+                     'YearOfUse', 'HoursUsed').expand('Employee').filter(`Employee/Id eq ${user.Id}`)();
+
+            const usedPTOHourList: IUsedPTOHours[] = results as IUsedPTOHours[];
+            const usedPTOHours = usedPTOHourList.filter(item => new Date(item.YearOfUse).getFullYear() === new Date().getFullYear())[0];
+
+            await sp.web.lists.getByTitle('UsedPTOHours').items
+                .getById(usedPTOHours.Id)
+                .update({
+                    HoursUsed: usedPTOHours.HoursUsed + hoursUsedUp
+                })
+        } catch (error) {
+            console.error("Error adding used hours: ", error);
+        }
+    }
+
+    const handleApprove = async (absence: IAbsence): Promise<void> => {
+        try {
+            const absenceId: number = absence.Id;
             await sp.web.lists.getByTitle('Absence').items.getById(absenceId).update({
                 Approved: true
             });
             // Refresh the list after approval
             const fetchedAbsences = await fetchAbsencesAwaitingApproval(sp, user);
             setAbsencesToApprove(fetchedAbsences);
+            await addUsedHours(absence.HoursUsed);
             await fetchAbsenceContacts(fetchedAbsences);
         } catch (error) {
             console.error("Error approving absence: ", error);
@@ -78,7 +108,7 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
                 isResizable: false,
                 onRender: (item: IAbsence) => (
                     <div>
-                        <PrimaryButton text="Approve" onClick={() => handleApprove(item.Id)} styles={{ root: { marginRight: 8 } }} />
+                        <PrimaryButton text="Approve" onClick={() => handleApprove(item)} styles={{ root: { marginRight: 8 } }} />
                         <DefaultButton text="Reject" onClick={() => handleReject(item.Id)} />
                     </div>
                 ),
@@ -119,10 +149,15 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
         const loadAbsences = async (): Promise<void> => {
             const fetchedAbsences = await fetchAbsencesAwaitingApproval(sp, user);
             setAbsencesToApprove(fetchedAbsences);
-            await fetchAbsenceContacts(fetchedAbsences);            
+            await fetchAbsenceContacts(fetchedAbsences);
+            setIsLoaded(true);
         };
         loadAbsences().catch(console.error);
     }, [sp]);
+
+    useEffect(() => {
+        if (absencesToApprove.length === 0 && isLoaded === true) onUpdate();
+    }, [absencesToApprove])
 
 
     return (
