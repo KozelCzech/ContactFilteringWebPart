@@ -95,10 +95,10 @@ export const fetchAbsencesAwaitingApproval = async (sp: SPFI, user: IContact): P
             const results = await sp.web.lists.getByTitle('Absence').items
                 .select('Id', 'Title', 
                     'Employee/Id', 'Employee/Title', 
-                    'AbsenceType', 'To',
+                    'AbsenceType/Id', "AbsenceType/Title", 'To',
                     'From', 'Notes', 'NoteForLeader',
                     'Approved', 'Approvee/Id', 'Approvee/Title', 'HoursUsed')
-                .expand('Employee, Approvee')
+                .expand('Employee, Approvee, AbsenceType')
                 .filter('Approved eq false and Approvee/Id eq ' + user.Id)();
                     
             return results as IAbsence[];
@@ -113,8 +113,8 @@ export const fetchAbsences = async (sp: SPFI, contact: IContact): Promise<IAbsen
             const result = await sp.web.lists.getByTitle('Absence').items
                 .select('Id', 'Title', 
                     'Employee/Id', 'Employee/Title', 
-                    'AbsenceType', 'To',
-                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee').filter(`Employee/Id eq '${contact.Id}'`)();
+                    'AbsenceTypeId', 'AbsenceType/Title', 'To',
+                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee, AbsenceType').filter(`Employee/Id eq '${contact.Id}'`)();
     
             return result as IAbsence[];
         } catch (exception){

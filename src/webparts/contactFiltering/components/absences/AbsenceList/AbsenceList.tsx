@@ -2,18 +2,17 @@ import * as React from 'react';
 import styles from './AbsenceList.module.scss';
 import { SPFI } from '@pnp/sp';
 import { useEffect } from 'react';
-import { IAbsence } from '../AbsenceInterfaces';
+import { IAbsence, IAbsenceType } from '../AbsenceInterfaces';
 import { ConstrainMode, DetailsList, DetailsListLayoutMode, Dropdown, IColumn, IconButton, IDropdownOption, PivotItem, PrimaryButton, SelectionMode, TextField } from '@fluentui/react';
 import { CheckmarkFilled, DismissFilled } from '@fluentui/react-icons';
 import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { formatDate, getCzechHolidaysCallendarEvents } from '../../../../../utils/dateUtils';
 import { IContact } from '../../../models/IContact';
 import TabsView from '../../subComponents/tabsView/tabsView';
-import { IFieldInfo } from '@pnp/sp/fields';
 
+import dayGridPlugin from '@fullcalendar/daygrid';
 
 
 export interface AbsenceListProps {
@@ -41,7 +40,7 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
 
     const [ absenceTypeOptions, setAbsenceTypeOptions ] = React.useState<IDropdownOption[]>([]);
 
-    const [ absenceType, setAbsenceType ] = React.useState<string | number | undefined>(undefined);
+    const [ absenceType, setAbsenceType ] = React.useState<IAbsenceType | undefined>(undefined);
     const [ nameText, setNameText ] = React.useState<string>('');
     const [ activeFilter, setActiveFilter ] = React.useState<string>('');
     const [ activeNameFilter, setActiveNameFilter ] = React.useState<string>('');
@@ -53,9 +52,9 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
         try {
             const items = sp.web.lists.getByTitle('Absence').items
                 .select('Id', 'Title', 
-                    'Employee/Id', 'Employee/Title', 
-                    'AbsenceType', 'To',
-                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee');
+                    'Employee/Id', 'Employee/Title',
+                    'AbsenceType/Id', 'AbsenceType/Title', 'To',
+                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee,AbsenceType');
             
             const result = filter ? await items.filter(filter)() : await items();
 
@@ -130,13 +129,15 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
     const fetchAbsenceTypes = async (): Promise<void> => {
         try {
             // Assumes your list is named 'Absences' and the choice field is 'AbsenceType'
-            const list = sp.web.lists.getByTitle("Absence");
-            const field: IFieldInfo = await list.fields.getByInternalNameOrTitle("AbsenceType")();
+            const results = await sp.web.lists.getByTitle("AbsenceTypes").items
+                .select("Id", "Title")();
     
-            if (field && field.Choices) {
-                const options: IDropdownOption[] = field.Choices.map(choice => ({
-                    key: choice,
-                    text: choice
+            const absenceTypes: IAbsenceType[] = results;
+    
+            if (absenceTypes && absenceTypes.length > 0) {
+                const options: IDropdownOption[] = absenceTypes.map(type => ({
+                    key: type.Id,
+                    text: type.Title
                 }));
                 setAbsenceTypeOptions(options);
             }
@@ -151,14 +152,17 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
     }
 
     const onOptionChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
-        setAbsenceType(option ? option.key : "");
+        if (option) {
+            setAbsenceType({ Id: option.key as number, Title: option.text });
+        } else {
+            setAbsenceType(undefined);
+        }
       };
 
     const createFilter = (): void => {
         const filterParts: string[] = [];
-    
         if (absenceType) {
-            filterParts.push(`(AbsenceType eq '${absenceType}')`);
+            filterParts.push(`(AbsenceTypeId eq '${absenceType.Id}')`);
         }
 
         const combinedFilter = filterParts.join(' and ');
@@ -221,7 +225,8 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
             }
         },
         {
-            key: 'type', name: 'Typ', fieldName: 'AbsenceType', minWidth: 80, isResizable: true,
+            key: 'type', name: 'Typ', fieldName: 'AbsenceType.Title', minWidth: 80, isResizable: true,
+            onRender: (item: IAbsence) => <span>{item.AbsenceType.Title}</span>,
         },
         {
             key: 'from', name: 'Od', fieldName: 'From', minWidth: 65, isResizable: true,
@@ -259,7 +264,7 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
                     label="Absence Type:"
                     placeholder="Select an Absence Type"
                     options={absenceTypeOptions}
-                    selectedKey={absenceType}
+                    selectedKey={absenceType ? absenceType.Id : null}
                     onChange={onOptionChange}
                     />
             </div>

@@ -14,20 +14,11 @@ interface IApproveAbsenceProps{
     onUpdate: () => void;
 }
 
-interface IUsedPTOHours {
-    Id: number;
-    Title: string;
-    Employee: IContact;
-    YearOfUse: Date;
-    HoursUsed: number;
-}
-
 const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
     const { sp, user, onUpdate } = props;
     const [ absencesToApprove, setAbsencesToApprove ] = useState<IAbsence[]>([]);
     const [ contacts, setContacts ] = useState<IContact[]>([]);
     const [ isLoaded, setIsLoaded ] = useState<boolean>(false); 
-    
 
 
     const fetchAbsenceContacts = async (currentAbsences: IAbsence[]): Promise<void> => {
@@ -54,26 +45,6 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
         }
     };
 
-    const addUsedHours = async (hoursUsedUp: number): Promise<void> => {
-        try {
-            const results = await sp.web.lists.getByTitle('UsedPTOHours').items
-                .select('Id', 'Title',
-                     'Employee/Id', 'Employee/Title',
-                     'YearOfUse', 'HoursUsed').expand('Employee').filter(`Employee/Id eq ${user.Id}`)();
-
-            const usedPTOHourList: IUsedPTOHours[] = results as IUsedPTOHours[];
-            const usedPTOHours = usedPTOHourList.filter(item => new Date(item.YearOfUse).getFullYear() === new Date().getFullYear())[0];
-
-            await sp.web.lists.getByTitle('UsedPTOHours').items
-                .getById(usedPTOHours.Id)
-                .update({
-                    HoursUsed: usedPTOHours.HoursUsed + hoursUsedUp
-                })
-        } catch (error) {
-            console.error("Error adding used hours: ", error);
-        }
-    }
-
     const handleApprove = async (absence: IAbsence): Promise<void> => {
         try {
             const absenceId: number = absence.Id;
@@ -83,7 +54,6 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
             // Refresh the list after approval
             const fetchedAbsences = await fetchAbsencesAwaitingApproval(sp, user);
             setAbsencesToApprove(fetchedAbsences);
-            await addUsedHours(absence.HoursUsed);
             await fetchAbsenceContacts(fetchedAbsences);
         } catch (error) {
             console.error("Error approving absence: ", error);
@@ -125,6 +95,7 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
             },
             {
                 key: 'type', name: 'Typ', fieldName: 'AbsenceType', minWidth: 80, isResizable: false,
+                onRender: (item: IAbsence) => <span>{item.AbsenceType.Title}</span>,
             },
             {
                 key: 'from', name: 'Od', fieldName: 'From', minWidth: 65, isResizable: false,

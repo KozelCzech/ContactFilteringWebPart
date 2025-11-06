@@ -54,6 +54,8 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   const [ showApproveAbsence, setShowApproveAbsence ] = useState<boolean>(false);
 
+  const [yearlyTrigger, setYearlyTrigger] = useState(() => new Date().getFullYear());
+
   const listName: string = "ContactFilteringTest";
   
   // #region Contacts
@@ -375,6 +377,28 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
             }
         }
   }, [currentPageNumber]);
+
+  // This effect sets up a long-running check to see if the year has changed.
+  useEffect(() => {
+    // Check for a new year every hour. This is a good balance to ensure it
+    // runs soon after the new year without checking too frequently.
+    const intervalId = setInterval(() => {
+      const newYear = new Date().getFullYear();
+      if (newYear !== yearlyTrigger) {
+        setYearlyTrigger(newYear);
+      }
+    }, 1000 * 60 * 60); // 1 hour in milliseconds
+
+    // Cleanup the interval when the component unmounts to prevent memory leaks.
+    return () => clearInterval(intervalId);
+  }, [yearlyTrigger]);
+
+  // This is your yearly effect. It will run once on component mount,
+  // and then again every time the 'yearlyTrigger' state changes (i.e., on Jan 1st).
+  useEffect(() => {
+    console.log(`Yearly task running for ${yearlyTrigger}`);
+    
+  }, [yearlyTrigger]);
 
 
   return (

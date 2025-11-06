@@ -3,13 +3,12 @@ import styles from './RequestAbsence.module.scss';
 import { IContact } from '../../../models/IContact';
 import { DatePicker, DayOfWeek, DefaultButton, Dropdown, IDropdownOption, PrimaryButton, TextField, IChoiceGroupOption, ChoiceGroup } from '@fluentui/react';
 import { CzechDatePickerStrings } from '../../../localization/cs-CZ'
-import { IAbsence } from '../AbsenceInterfaces';
+import { IAbsence, IAbsenceType } from '../AbsenceInterfaces';
 import { useEffect, useState } from 'react';
 import { SPFI } from '@pnp/sp';
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/fields";
-import { IFieldInfo } from '@pnp/sp/fields';
 import { addDays } from '@fluentui/date-time-utilities';
 import { fetchUserWorkHours, getLeaderInfo } from '../../../../../utils/userUtils';
 import { getCzechHolidays } from '../../../../../utils/dateUtils';
@@ -27,6 +26,9 @@ interface IAbsenceValidationErrors {
     to?: string;
 }
 
+
+
+
 type TimeSelectionType = 'FullDay' | 'HalfDayAM' | 'HalfDayPM' | 'Hourly';
 
 
@@ -42,7 +44,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         return {
             Id: 0,
             Employee: { Id: user.Id, Title: user.Title },
-            AbsenceType: '',
+            AbsenceType: { Id: 0, Title: '' },
             From: fromDate,
             To: toDate,
             Notes: '',
@@ -55,6 +57,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         };
     });
     const [ errors, setErrors ] = useState<IAbsenceValidationErrors>({});
+    const [ absenceTypes, setAbsenceTypes ] = useState<IAbsenceType[]>([]);
     const [ absenceTypeOptions, setAbsenceTypeOptions ] = useState<IDropdownOption[]>([]);
     const [ startDayTimeType, setStartDayTimeType ] = useState<TimeSelectionType>('FullDay');
     const [ endDayTimeType, setEndDayTimeType ] = useState<TimeSelectionType>('FullDay');
@@ -81,10 +84,10 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             const result = await sp.web.lists.getByTitle("Absence").items
                 .select('Id', 'Title', 
                     'Employee/Id', 'Employee/Title', 
-                    'AbsenceType', 'To',
+                    'AbsenceType/Id', 'AbsenceType/Title', 'To',
                     'From', 'Notes', 'NoteForLeader',
                     'Approved', 'Approvee/Id', 'Approvee/Title')
-                .expand('Employee, Approvee')
+                .expand('Employee, Approvee, AbsenceType')
                 .filter(`Employee/Id eq ${personId} and Approved eq 1`)();
 
             const absences: IAbsence[] = result as IAbsence[];
@@ -139,7 +142,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             const itemToAdd = {
                 EmployeeId: newAbsence.Employee.Id,
                 ApproveeId: bossMan.Id || bossMan.ID,
-                AbsenceType: newAbsence.AbsenceType,
+                AbsenceTypeId: newAbsence.AbsenceType.Id,
                 From: newAbsence.From,
                 To: newAbsence.To,
                 Notes: newAbsence.Notes,
@@ -158,13 +161,16 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     const fetchAbsenceTypes = async (): Promise<void> => {
         try {
             // Assumes your list is named 'Absences' and the choice field is 'AbsenceType'
-            const list = sp.web.lists.getByTitle("Absence");
-            const field: IFieldInfo = await list.fields.getByInternalNameOrTitle("AbsenceType")();
+            const results = sp.web.lists.getByTitle("AbsenceTypes").items
+                .select("Id", "Title", "TakesPTO", "FinancialStatement")();
 
-            if (field && field.Choices) {
-                const options: IDropdownOption[] = field.Choices.map(choice => ({
-                    key: choice,
-                    text: choice
+            const absenceTypes: IAbsenceType[] = await results;
+            setAbsenceTypes(absenceTypes);
+
+            if (absenceTypes && absenceTypes.length > 0) {
+                const options: IDropdownOption[] = absenceTypes.map(choice => ({
+                    key: choice.Id,
+                    text: choice.Title
                 }));
                 setAbsenceTypeOptions(options);
             }
@@ -206,6 +212,40 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         return workdays;
     };
 
+
+    const calculatePTOHours = async (from: Date, to: Date): Promise<number> => {
+        const workDayHours: number = await fetchUserWorkHours(sp, user.Id);
+        const halfDayHours: number = workDayHours / 2;
+        
+        const isSameDay = from.toDateString() === to.toDateString();
+        const workdays = await calculateWorkdays(from, to);
+        let ptoHours = 0;
+
+        if (workdays === 0) {
+            ptoHours = 0;
+        } else if (isSameDay) {
+            if (startDayTimeType === 'FullDay') ptoHours = workDayHours;
+            else if (startDayTimeType === 'HalfDayAM' || startDayTimeType === 'HalfDayPM') ptoHours = halfDayHours;
+            else if (startDayTimeType === 'Hourly') ptoHours = startDayHours;
+        } else {
+            // Full days in between
+            ptoHours = (workdays > 2) ? (workdays - 2) * workDayHours : 0;
+
+            // Start day hours
+            if (startDayTimeType === 'FullDay') ptoHours += workDayHours;
+            else if (startDayTimeType === 'HalfDayAM' || startDayTimeType === 'HalfDayPM') ptoHours += halfDayHours;
+            else if (startDayTimeType === 'Hourly') ptoHours += startDayHours;
+
+            // End day hours
+            if (endDayTimeType === 'FullDay') ptoHours += workDayHours;
+            else if (endDayTimeType === 'HalfDayAM' || endDayTimeType === 'HalfDayPM') ptoHours += halfDayHours;
+            else if (endDayTimeType === 'Hourly') ptoHours += endDayHours;
+        }
+
+        return ptoHours;
+    }
+
+
     const handleSaveButton = async (): Promise<void> => {
         const validationErrors: IAbsenceValidationErrors = {};
 
@@ -239,39 +279,10 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         }
         // --- End of Validation ---
 
-
-        const workDayHours: number = await fetchUserWorkHours(sp, user.Id);
-        const halfDayHours: number = workDayHours / 2;
-        
-        const from = newAbsence.From;
-        const to = newAbsence.To;
-
-        const isSameDay = from.toDateString() === to.toDateString();
-        const workdays = await calculateWorkdays(from, to);
         let ptoHours = 0;
-
-        if (workdays === 0) {
-            ptoHours = 0;
-        } else if (isSameDay) {
-            if (startDayTimeType === 'FullDay') ptoHours = workDayHours;
-            else if (startDayTimeType === 'HalfDayAM' || startDayTimeType === 'HalfDayPM') ptoHours = halfDayHours;
-            else if (startDayTimeType === 'Hourly') ptoHours = startDayHours;
-        } else {
-            // Full days in between
-            ptoHours = (workdays > 2) ? (workdays - 2) * workDayHours : 0;
-
-            // Start day hours
-            if (startDayTimeType === 'FullDay') ptoHours += workDayHours;
-            else if (startDayTimeType === 'HalfDayAM' || startDayTimeType === 'HalfDayPM') ptoHours += halfDayHours;
-            else if (startDayTimeType === 'Hourly') ptoHours += startDayHours;
-
-            // End day hours
-            if (endDayTimeType === 'FullDay') ptoHours += workDayHours;
-            else if (endDayTimeType === 'HalfDayAM' || endDayTimeType === 'HalfDayPM') ptoHours += halfDayHours;
-            else if (endDayTimeType === 'Hourly') ptoHours += endDayHours;
+        if (absenceTypes.some(type => type.TakesPTO && type.Id === newAbsence.AbsenceType.Id)){
+            ptoHours = await calculatePTOHours(newAbsence.From, newAbsence.To);
         }
-
-        // TODO: Check if day off type can deduct PTO
 
         await addAbsence(ptoHours);
 
@@ -287,7 +298,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     const onAbsenceTypeChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
         if (option) {
             setErrors(prev => ({ ...prev, absenceType: undefined }));
-            setNewAbsence(prev => ({ ...prev, AbsenceType: option.text }));
+            setNewAbsence(prev => ({ ...prev, AbsenceType: {Id: option.key as number, Title: option.text as string} }));
         }
     }
 

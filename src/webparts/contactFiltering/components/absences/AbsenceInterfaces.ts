@@ -1,11 +1,19 @@
 import { IContact } from "../../models/IContact";
 
 
+export interface IAbsenceType {
+    Id: number;
+    Title: string;
+    TakesPTO?: boolean;
+    FinancialStatement?: boolean;
+}
+
+
 export interface IAbsence {
     Id: number;
     Title: string;
     Employee: IContact;
-    AbsenceType: string;
+    AbsenceType: IAbsenceType;
     To: Date;
     From: Date;
     Notes: string;
