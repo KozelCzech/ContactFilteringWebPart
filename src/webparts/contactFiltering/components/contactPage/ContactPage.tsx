@@ -64,8 +64,8 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
             const result = await sp.web.lists.getByTitle('Absence').items
                 .select('Id', 'Title', 
                     'Employee/Id', 'Employee/Title', 
-                    'AbsenceType', 'To',
-                    'From', 'Notes', 'Approved').expand('Employee').filter(`Employee/Id eq '${contact.Id}'`)();
+                    'AbsenceType/Id', 'AbsenceType/Title', 'To',
+                    'From', 'Notes', 'Approved').expand('Employee', 'AbsenceType').filter(`Employee/Id eq '${contact.Id}'`)();
     
             setAbsences(result as IAbsence[]);
         } catch (exception){
@@ -209,7 +209,8 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
 
     const columns: IColumn[] = [
         {
-            key: 'type', name: 'Typ', fieldName: 'AbsenceType', minWidth: 80, isResizable: true,
+            key: 'type', name: 'Typ', fieldName: 'AbsenceType.Title', minWidth: 80, isResizable: true,
+            onRender: (item: IAbsence) => <span>{item.AbsenceType.Title}</span>,
         },
         {
             key: 'from', name: 'Od', fieldName: 'From', minWidth: 65, isResizable: true,

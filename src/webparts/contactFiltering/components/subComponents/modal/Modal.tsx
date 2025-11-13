@@ -8,6 +8,7 @@ export interface IModalProps {
     isOpen: boolean;
     onClose: () => void;
     children: React.ReactNode;
+    width?: 'large';
 }
 
 
@@ -37,9 +38,14 @@ const Modal: React.FC<IModalProps> = (props) => {
         event.stopPropagation();
     };
 
+    const contentClasses = [
+        styles.content,
+        props.width ? styles[props.width] : ''
+    ].join(' ');
+
     return (
         <div className={styles.overlay} onClick={props.onClose}>
-            <div className={styles.content} onClick={handleContentClick}>
+            <div className={contentClasses} onClick={handleContentClick}>
                 <div className={styles.header}>
                     {props.title ? <h2 className={styles.title}>{props.title}</h2> : null}
                     <button className={styles.closeButton} onClick={props.onClose}>

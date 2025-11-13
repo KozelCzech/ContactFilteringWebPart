@@ -1,5 +1,5 @@
 import { SPFI } from "@pnp/sp";
-import { IAbsence } from "../webparts/contactFiltering/components/absences/AbsenceInterfaces";
+import { IAbsence, IAbsenceType } from "../webparts/contactFiltering/components/absences/AbsenceInterfaces";
 
 interface storedPTOHours {
     Id: number;
@@ -22,6 +22,7 @@ interface storedPTOHours {
 export const PTOHoursLeft = async (sp: SPFI, employeeId: number, asOfDate: Date = new Date()): Promise<number> => {
     try {
         let totalPTOHours = 0;
+        const currentYear = asOfDate.getFullYear();
 
         // 1. Get all PTO grants valid up to the asOfDate
         const storedPTOHours = await sp.web.lists.getByTitle('PTOHours').items
@@ -40,13 +41,13 @@ export const PTOHoursLeft = async (sp: SPFI, employeeId: number, asOfDate: Date 
             const validFrom = new Date(item.ValidFrom);
 
             // Only include grants that were valid on or before the "as of" date.
-            // TODO: Add expiration logic here based on your 3-year rule.
-            if (validFrom <= asOfDate) {
+            if (validFrom.getFullYear() === currentYear) {
                 totalPTOHours += item.PTOAmount;
             }
         });
 
-        // 2. Get all approved absences that started on or before the asOfDate
+        // 2. Get all approved absences that started in the same year as asOfDate
+
         const usedAbsences = await sp.web.lists.getByTitle('Absence').items
             .select(
                 'Id',
@@ -56,10 +57,11 @@ export const PTOHoursLeft = async (sp: SPFI, employeeId: number, asOfDate: Date 
                 'From'
             )
             .expand('Employee')
-            .filter(`Employee/Id eq ${employeeId} and Approved eq true and From le '${asOfDate.toISOString()}'`)();
-
+            .filter(`Employee/Id eq ${employeeId}`)();
         usedAbsences.forEach((item: IAbsence) => {
-            totalPTOHours -= item.HoursUsed;
+            if (new Date(item.From).getFullYear() === currentYear && item.Approved === true){
+                totalPTOHours -= item.HoursUsed;
+            }
         });
 
         return totalPTOHours;
@@ -96,3 +98,35 @@ export const createNewYearPTO = async (sp: SPFI, employeeId: number): Promise<vo
         console.error("Error creating new year PTO: ", exception);
     }
 }
+
+
+export const fetchAbsenceTypes = async (sp: SPFI): Promise<IAbsenceType[]> => {
+        try {
+            // Assumes your list is named 'Absences' and the choice field is 'AbsenceType'
+            const results = sp.web.lists.getByTitle("AbsenceTypes").items
+                .select("Id", "Title", "TakesPTO", "FinancialStatement")();
+
+            const absenceTypes: IAbsenceType[] = await results;
+
+            return absenceTypes as IAbsenceType[];
+        } catch (error) {
+            console.error("Error fetching absence types: ", error);
+            return [];
+        }
+    }
+
+
+export const fetchAllAbsences = async (sp: SPFI): Promise<IAbsence[]> => {
+        try {
+            const result = await sp.web.lists.getByTitle('Absence').items
+                .select('Id', 'Title', 
+                    'Employee/Id', 'Employee/Title', 
+                    'AbsenceTypeId', 'AbsenceType/Title', 'To',
+                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee, AbsenceType')();
+    
+            return result as IAbsence[];
+        } catch (exception){
+            console.error("Error fetching absences: ", exception);
+            return [];
+        }
+    }

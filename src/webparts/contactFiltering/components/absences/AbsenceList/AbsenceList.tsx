@@ -19,6 +19,7 @@ export interface AbsenceListProps {
     sp: SPFI;
     requestModalOpen: boolean;
     approveModalOpen: boolean;
+    showHistory?: boolean;
 }
 
 
@@ -33,7 +34,7 @@ export interface ICallendarEvent {
 
 
 const AbsenceList: React.FC<AbsenceListProps> = (props) => {
-    const { sp, requestModalOpen, approveModalOpen } = props
+    const { sp, requestModalOpen, approveModalOpen, showHistory = false } = props
     const [ absences, setAbsences ] = React.useState<IAbsence[]>([]);
     const [ contacts, setContacts ] = React.useState<IContact[]>([]);
     const [ displayedAbsences, setDisplayedAbsences ] = React.useState<IAbsence[]>([]);
@@ -202,8 +203,22 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
                 return false; // If employee not found, don't include in filtered list
             });
         }
+
+        if (!showHistory) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Start of today for comparison
+            
+            filtered = filtered.filter(absence => {
+                const toDate = new Date(absence.To);
+                toDate.setHours(0, 0, 0, 0);
+
+                // Show any absence that has not ended before today.
+                return toDate >= today;
+            });
+        }
+
         setDisplayedAbsences(filtered);
-    }, [absences, contacts, activeNameFilter]);
+    }, [absences, contacts, activeNameFilter, showHistory]);
 
     useEffect(() => {
     
@@ -250,8 +265,6 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
             ),
         },
     ];
-
-    
 
 
     return (

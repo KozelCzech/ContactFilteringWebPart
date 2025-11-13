@@ -19,6 +19,7 @@ import ApproveAbsence from './absences/approveAbsence/ApproveAbsence';
 import TabsView from './subComponents/tabsView/tabsView';
 import { PivotItem } from '@fluentui/react';
 import { fetchAbsencesAwaitingApproval } from '../../../utils/userUtils';
+import FinancialStatements from './absences/financialStatements/FinancialStatements';
 
 
 
@@ -51,6 +52,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   const [ requestAbsenceModalOpen, setRequestAbsenceModalOpen ] = useState<boolean>(false);
   const [ approveAbsenceModalOpen, setApproveAbsenceModalOpen ] = useState<boolean>(false);
+  const [ financialStatementsModalOpen, setFinancialStatementsModalOpen ] = useState<boolean>(false);
 
   const [ showApproveAbsence, setShowApproveAbsence ] = useState<boolean>(false);
 
@@ -309,6 +311,14 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       setApproveAbsenceModalOpen(false);
     }
 
+    const handleFinancialStatementsClick = (): void => {
+      setFinancialStatementsModalOpen(true);
+    }
+
+    const handleFinancialStatementsUpdate = (): void => {
+      setFinancialStatementsModalOpen(false);
+    }
+
 
     const fetchUserImage = (): string => {
       try {
@@ -407,6 +417,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
         <div className={styles.headerActions}>
           <div onClick={handleRequestAbsenceClick}>Request absence</div>
           {showApproveAbsence && <div onClick={handleApproveAbsenceClick}>Approve absence</div>}
+          <div onClick={handleFinancialStatementsClick}>Financial Statements</div>
           <div onClick={handleUserPageClick} className={styles.userAction} >
             {currentUser?.Image && <Image src={fetchUserImage()} className={styles.userImage} imageFit={ImageFit.cover} />}
           </div>
@@ -476,6 +487,9 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       </Modal>
       <Modal isOpen={approveAbsenceModalOpen} onClose={handleApproveAbsenceUpdate}>
         {currentUser && <ApproveAbsence sp={props.sp} user={currentUser} onUpdate={handleApproveAbsenceUpdate}/>}
+      </ Modal>
+      <Modal isOpen={financialStatementsModalOpen} onClose={handleFinancialStatementsUpdate} width='large'>
+        <FinancialStatements sp={props.sp} />
       </ Modal>
         
     </div>

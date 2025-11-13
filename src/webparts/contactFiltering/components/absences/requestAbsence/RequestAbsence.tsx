@@ -12,6 +12,7 @@ import "@pnp/sp/fields";
 import { addDays } from '@fluentui/date-time-utilities';
 import { fetchUserWorkHours, getLeaderInfo } from '../../../../../utils/userUtils';
 import { getCzechHolidays } from '../../../../../utils/dateUtils';
+import { fetchAbsenceTypes, PTOHoursLeft } from '../../../../../utils/ptoUtils';
 
 
 export interface IRequestAbsenceProps {
@@ -24,6 +25,7 @@ interface IAbsenceValidationErrors {
     absenceType?: string;
     from?: string;
     to?: string;
+    pto?: string;
 }
 
 
@@ -158,27 +160,6 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         }
     }
 
-    const fetchAbsenceTypes = async (): Promise<void> => {
-        try {
-            // Assumes your list is named 'Absences' and the choice field is 'AbsenceType'
-            const results = sp.web.lists.getByTitle("AbsenceTypes").items
-                .select("Id", "Title", "TakesPTO", "FinancialStatement")();
-
-            const absenceTypes: IAbsenceType[] = await results;
-            setAbsenceTypes(absenceTypes);
-
-            if (absenceTypes && absenceTypes.length > 0) {
-                const options: IDropdownOption[] = absenceTypes.map(choice => ({
-                    key: choice.Id,
-                    text: choice.Title
-                }));
-                setAbsenceTypeOptions(options);
-            }
-        } catch (error) {
-            console.error("Error fetching absence types: ", error);
-            setErrors(prev => ({ ...prev, absenceType: "Could not load absence types." }));
-        }
-    }
 
     const getHolidaysForDateRange = (startYear: number, endYear: number): Date[] => {
         let allHolidays: Date[] = [];
@@ -214,81 +195,91 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
 
     const calculatePTOHours = async (from: Date, to: Date): Promise<number> => {
+        const holidays = getHolidaysForDateRange(from.getFullYear(), to.getFullYear());
+        const isWorkday = (date: Date): boolean => {
+            if (isWeekend(date)) return false;
+            const currentUTCDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+            return !holidays.some(holiday => holiday.getTime() === currentUTCDate.getTime());
+        };
+
         const workDayHours: number = await fetchUserWorkHours(sp, user.Id);
-        const halfDayHours: number = workDayHours / 2;
-        
         const isSameDay = from.toDateString() === to.toDateString();
         const workdays = await calculateWorkdays(from, to);
-        let ptoHours = 0;
 
         if (workdays === 0) {
-            ptoHours = 0;
-        } else if (isSameDay) {
-            if (startDayTimeType === 'FullDay') ptoHours = workDayHours;
-            else if (startDayTimeType === 'HalfDayAM' || startDayTimeType === 'HalfDayPM') ptoHours = halfDayHours;
-            else if (startDayTimeType === 'Hourly') ptoHours = startDayHours;
-        } else {
-            // Full days in between
-            ptoHours = (workdays > 2) ? (workdays - 2) * workDayHours : 0;
-
-            // Start day hours
-            if (startDayTimeType === 'FullDay') ptoHours += workDayHours;
-            else if (startDayTimeType === 'HalfDayAM' || startDayTimeType === 'HalfDayPM') ptoHours += halfDayHours;
-            else if (startDayTimeType === 'Hourly') ptoHours += startDayHours;
-
-            // End day hours
-            if (endDayTimeType === 'FullDay') ptoHours += workDayHours;
-            else if (endDayTimeType === 'HalfDayAM' || endDayTimeType === 'HalfDayPM') ptoHours += halfDayHours;
-            else if (endDayTimeType === 'Hourly') ptoHours += endDayHours;
+            return 0;
         }
+    
+        const getHoursForTimeType = (timeType: TimeSelectionType, customHours: number): number => {
+            switch (timeType) {
+                case 'FullDay': return workDayHours;
+                case 'HalfDayAM':
+                case 'HalfDayPM': return workDayHours / 2;
+                case 'Hourly': return customHours;
+                default: return 0;
+            }
+        };
+    
+        if (isSameDay) {
+            // For a single day request, it must be a workday to count.
+            return isWorkday(from) ? getHoursForTimeType(startDayTimeType, startDayHours) : 0;
+        } 
+        
+        // For multi-day requests
+        const startDayHoursUsed = isWorkday(from) ? getHoursForTimeType(startDayTimeType, startDayHours) : 0;
+        const endDayHoursUsed = isWorkday(to) ? getHoursForTimeType(endDayTimeType, endDayHours) : 0;
+    
+        // Adjust workday count based on whether start/end days are workdays
+        let fullWorkdaysInBetween = workdays;
+        if (isWorkday(from)) fullWorkdaysInBetween--;
+        if (isWorkday(to)) fullWorkdaysInBetween--;
 
-        return ptoHours;
+        const hoursForFullDays = fullWorkdaysInBetween * workDayHours;
+    
+        return startDayHoursUsed + endDayHoursUsed + hoursForFullDays;
     }
 
 
     const handleSaveButton = async (): Promise<void> => {
-        const validationErrors: IAbsenceValidationErrors = {};
-
+        const validationErrors: IAbsenceValidationErrors = {...errors};
+        
         // --- Validation ---
         const today = new Date();
         today.setHours(0, 0, 0, 0); // Set to midnight to compare dates only
 
-        if (!newAbsence.AbsenceType) {
+        if (!newAbsence.AbsenceType || !newAbsence.AbsenceType.Id) {
             validationErrors.absenceType = 'Please select an absence type.';
         }
 
-        if (newAbsence.To < today) {
+        if (newAbsence.To < today && newAbsence.To.toDateString() !== today.toDateString()) {
             validationErrors.to = "The 'To' date cannot be in the past.";
         }
 
-        if (newAbsence.From < today) {
+        if (newAbsence.From < today && newAbsence.From.toDateString() !== today.toDateString()) {
             validationErrors.from = "The 'From' date cannot be in the past.";
         }
 
         if (newAbsence.To < newAbsence.From) {
             validationErrors.to = "The 'To' date cannot be before the 'From' date.";
         }
-
+        
         setErrors(validationErrors);
         
         
-        
+        const activeErrors = Object.keys(validationErrors).filter(key => validationErrors[key as keyof IAbsenceValidationErrors] !== undefined);
 
-        if (Object.keys(validationErrors).length > 0) {
+        if (activeErrors.length > 0) {
             return;
         }
         // --- End of Validation ---
 
-        let ptoHours = 0;
-        if (absenceTypes.some(type => type.TakesPTO && type.Id === newAbsence.AbsenceType.Id)){
-            ptoHours = await calculatePTOHours(newAbsence.From, newAbsence.To);
-        }
-
+        // The PTO calculation is now done in useEffect, we just need to re-verify
+        // in case something changed. The result should be cached and fast.
+        const ptoHours = await calculatePTOHours(newAbsence.From, newAbsence.To);
+        
         await addAbsence(ptoHours);
-
         onUpdate();
-    }    
-    
+    }
 
     const handleCloseButton = (): void => {
         onUpdate();
@@ -362,10 +353,43 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
     useEffect(() => {
         if (sp) {
-            fetchAbsenceTypes().catch(console.error);
+            fetchAbsenceTypes(sp)
+                .then(types => {
+                    setAbsenceTypes(types);
+                    if (types && types.length > 0) {
+                        const options: IDropdownOption[] = types.map(choice => ({
+                            key: choice.Id,
+                            text: choice.Title
+                        }));
+                        setAbsenceTypeOptions(options);
+                    }
+                })
+                .catch(error => {
+                    console.error("Error fetching absence types: ", error);
+                    setErrors(prev => ({ ...prev, absenceType: "Could not load absence types." }));
+                });
         }
     }, [sp]);
 
+    useEffect(() => {
+        const validateAndCalculatePTO = async (): Promise<void> => {
+            if (absenceTypes.some(type => type.TakesPTO && type.Id === newAbsence.AbsenceType.Id)) {
+                const ptoHours = await calculatePTOHours(newAbsence.From, newAbsence.To);
+                const hoursLeft = await PTOHoursLeft(sp, user.Id);
+
+                if (ptoHours > hoursLeft) {
+                    setErrors(prev => ({ ...prev, pto: `You do not have enough PTO. You are requesting ${ptoHours} hours, but you only have ${hoursLeft} hours left.` }));
+                } else {
+                    setErrors(prev => ({ ...prev, pto: undefined }));
+                }
+            } else {
+                setErrors(prev => ({ ...prev, pto: undefined }));
+            }
+        };
+
+        validateAndCalculatePTO().catch(console.error);
+
+    }, [newAbsence, startDayTimeType, endDayTimeType, startDayHours, endDayHours, absenceTypes]);
     
     return (
         <div className={styles.requestAbsence}>
@@ -427,6 +451,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                 <TextField label='Note for CoHe' multiline rows={3} onChange={onNoteChange} />
                 <TextField label='Note for leader' multiline rows={3} onChange={onNoteForLeaderChange} />
             </div>
+            {errors.pto && <p className={styles.errorMessage}>{errors.pto}</p>}
             <div className={styles.actionsContainer}>
                 <PrimaryButton
                     text='Submit'

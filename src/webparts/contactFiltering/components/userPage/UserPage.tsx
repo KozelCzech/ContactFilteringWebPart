@@ -187,7 +187,6 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
             setComboBoxText(value as string);
         }
     };
-    // TODO: Show All users time offs in current year and upcoming but dont show full history in main list
 
 
     useEffect(() => {
@@ -207,7 +206,8 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
 
     const columns: IColumn[] = [
         {
-            key: 'type', name: 'Typ', fieldName: 'AbsenceType', minWidth: 80, isResizable: true,
+            key: 'type', name: 'Typ', fieldName: 'AbsenceType.Title', minWidth: 80, isResizable: true,
+            onRender: (item: IAbsence) => <span>{item.AbsenceType.Title}</span>,
         },
         {
             key: 'from', name: 'Od', fieldName: 'From', minWidth: 65, isResizable: true,
