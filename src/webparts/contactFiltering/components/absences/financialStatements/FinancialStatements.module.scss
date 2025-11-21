@@ -1,13 +1,22 @@
 .header {
     display: flex;
-    justify-content: space-between; /* Pushes children to opposite ends */
+    justify-content: space-between;
     align-items: center;
-    width: 100%;
-    padding: 10px 0;
+    margin-bottom: 16px;
 }
 
 .monthSelector {
     display: flex;
     align-items: center;
-    gap: 10px; /* Adds some space between the buttons and the text */
+    gap: 8px;
+}
+
+.statementDetailsList {
+    :global(.ms-DetailsHeader) {
+        border-bottom: 1px solid #ccc;
+    }
+    :global(.ms-DetailsRow-cell) {
+        border-bottom: 1px solid #eee;
+        border-right: 1px solid #eee;
+    }
 }

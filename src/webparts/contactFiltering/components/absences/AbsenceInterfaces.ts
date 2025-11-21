@@ -22,4 +22,6 @@ export interface IAbsence {
     Approvee: IContact;
     TimeType: string;
     HoursUsed: number;
+    FirstMonth?: number;
+    SecondMonth?: number;
 }

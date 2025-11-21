@@ -1,13 +1,24 @@
-import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, IIconProps, IconButton, PrimaryButton, SelectionMode, Icon } from '@fluentui/react';
+import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, IIconProps, IconButton, PrimaryButton, SelectionMode, Icon, Spinner, SpinnerSize } from '@fluentui/react';
 import { SPFI } from '@pnp/sp';
+import jsPDF from 'jspdf';
+import autoTable, { UserOptions } from 'jspdf-autotable';
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import styles from './FinancialStatements.module.scss';
 import { IAbsence, IAbsenceType } from '../AbsenceInterfaces';
 import { fetchAbsenceTypes, fetchAllAbsences } from '../../../../../utils/ptoUtils';
+import { IContact } from '../../../models/IContact';
+import { fetchDepartmentByUserId, fetchUserById, IDepartment,  } from '../../../../../utils/userUtils';
+import { notoSansRegularBase64 } from '../../../../../utils/customFonts';
 
 
 
+// Extend the jsPDF interface to include the autoTable method from the plugin.
+declare module 'jspdf' {
+    interface jsPDF {
+        autoTable: (options: UserOptions) => jsPDF;
+    }
+}
 
 interface FinancialStatementsProps {
     sp: SPFI
@@ -17,8 +28,8 @@ interface IFinancialStatementItem {
     key: number;
     department: string;
     employeeName: string;
-    from: string;
-    to: string;
+    from: Date;
+    to: Date;
     totalHours: number;
     absenceTypes: { [key: string]: boolean }; // To hold hours for dynamic absence types
 }
@@ -32,17 +43,13 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
     const [ items, setItems] = useState<IFinancialStatementItem[]>([]); // This will hold the rows for the table
     const [ columns, setColumns] = useState<IColumn[]>([]); // This will hold the column definitions
     const [ fetchedAbsenceTypes, setFetchedAbsenceTypes ] = useState<IAbsenceType[]>([]);
+    const [ isLoading, setIsLoading ] = useState<boolean>(false);
 
 
     // Mock data for demonstration
-    const mockItems: IFinancialStatementItem[] = [
-        { key: 1, department: 'Sales', employeeName: 'John Doe', from: '01/11/2023', to: '05/11/2023', totalHours: 40, absenceTypes: { 'Vacation': true } },
-        { key: 2, department: 'Engineering', employeeName: 'Jane Smith', from: '10/11/2023', to: '11/11/2023', totalHours: 16, absenceTypes: { 'Vacation': true } },
-        { key: 3, department: 'Marketing', employeeName: 'Peter Jones', from: '20/11/2023', to: '24/11/2023', totalHours: 40, absenceTypes: { 'Business Trip': true } },
-    ];
-
-
-
+    
+    
+    
     useEffect(() => {
         fetchAbsenceTypes(sp).then(types => {
             setFetchedAbsenceTypes(types); // Store fetched types in state
@@ -57,8 +64,22 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
         const baseColumns: IColumn[] = [
             { key: 'department', name: 'Department', fieldName: 'department', minWidth: 100, isResizable: true },
             { key: 'employeeName', name: 'Employee Name', fieldName: 'employeeName', minWidth: 150, isResizable: true },
-            { key: 'from', name: 'From', fieldName: 'from', minWidth: 80, isResizable: true },
-            { key: 'to', name: 'To', fieldName: 'to', minWidth: 80, isResizable: true },
+            { 
+                key: 'from', 
+                name: 'From', 
+                fieldName: 'from', 
+                minWidth: 80, 
+                isResizable: true,
+                onRender: (item: IFinancialStatementItem) => item.from.toLocaleDateString() // Format Date to string
+            },
+            { 
+                key: 'to', 
+                name: 'To', 
+                fieldName: 'to', 
+                minWidth: 80, 
+                isResizable: true,
+                onRender: (item: IFinancialStatementItem) => item.to.toLocaleDateString() // Format Date to string
+            },
             { key: 'totalHours', name: 'Total Hours', fieldName: 'totalHours', minWidth: 100, isResizable: true },
         ];
 
@@ -87,7 +108,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
 
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
-
+    
     // Determine if the "Next" button should be disabled (or hidden)
     // It should be hidden if the selected month/year is the current month/year or in the future
     const isNextMonthDisabled = selectedYear > currentYear || (selectedYear === currentYear && selectedMonth >= currentMonth);
@@ -111,7 +132,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
             setSelectedMonth(selectedMonth - 1);
         }
     }
-
+    
 
     const setFSRows = async (): Promise<void> => {
         const allAbsences: IAbsence[] = await fetchAllAbsences(sp);
@@ -121,7 +142,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
         endOfMonth.setHours(23, 59, 59, 999); // Ensure it's the very end of the last day of the month
         
         const currentMonthAbsences: IAbsence[] = [];
-
+        
         allAbsences.forEach(absence => {
             const absenceStart = new Date(absence.From);
             const absenceEnd = new Date(absence.To);
@@ -132,9 +153,23 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
                 const modifiedStart = absenceStart < startOfMonth ? startOfMonth : absenceStart;
                 // Clip the end date to the end of the month if it's after
                 const modifiedEnd = absenceEnd > endOfMonth ? endOfMonth : absenceEnd;
+                let currentMonthHours = 0;
+                if (absence.HoursUsed > 0) {
+                    if (modifiedStart === absenceStart && modifiedEnd === absenceEnd){
+                        currentMonthHours = absence.HoursUsed
+                    }
+                    else if (modifiedStart === absenceStart && modifiedEnd !== absenceEnd){
+                        currentMonthHours = absence.FirstMonth || absence.HoursUsed
+                    }
+                    else if (modifiedEnd === absenceEnd && modifiedStart !== absenceStart){
+                        currentMonthHours = absence.SecondMonth || absence.HoursUsed
+                    }
+                }
+                
                
                 const modifiedAbsence: IAbsence = {
                     ...absence,
+                    HoursUsed: currentMonthHours,
                     From: modifiedStart,
                     To: modifiedEnd
                 }
@@ -142,20 +177,133 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
             }
         });
 
-        console.log("Current months absences: ", currentMonthAbsences)
+
+
+        const rowPromises = currentMonthAbsences.map(async (absence) => {
+            try {
+                const employee: IContact = await fetchUserById(sp, absence.Employee.Id);
+                const department: IDepartment = await fetchDepartmentByUserId(sp, employee.Id) || { Id: 0, Title: '' , Leader: {Id: 0, Title: ''}, Location: ''};
+
+                const row: IFinancialStatementItem = {
+                    key: absence.Id,
+                    department: department?.Title || "N/A",
+                    employeeName: `${employee.FirstName || ''} ${employee.LastName || ''}`,
+                    from: absence.From,
+                    to: absence.To,
+                    totalHours: absence.HoursUsed,
+                    absenceTypes: { [absence.AbsenceType.Title]: true }
+                };
+                return row;
+            } catch (error) {
+                console.error("Error processing absence row:", error);
+                return null; // Return null for failed rows
+            }
+        });
+
+        const fsRows = (await Promise.all(rowPromises)).filter(item => item !== null) as IFinancialStatementItem[];
+        
+        setItems(fsRows);
 
     }
 
+    const handleDownloadPdf = (): void => {
+        const doc = new jsPDF();
 
-    useEffect(() => {
-        // In a real scenario, you would fetch data based on selectedMonth and selectedYear
-        console.log(`Fetching data for ${selectedMonth + 1}/${selectedYear}`);
-        setFSRows().catch(error => {
-            console.error("Error fetching data:", error);
+        // --- Font Registration ---
+        // 1. Add the font file to the virtual file system of the PDF document.
+        doc.addFileToVFS('NotoSans-Regular.ttf', notoSansRegularBase64);
+        // 2. Add the font to the document, linking it to the file.
+        doc.addFont('NotoSans-Regular.ttf', 'NotoSans', 'normal');
+        // 3. Set this as the active font for the document.
+        doc.setFont('NotoSans');
+
+        const monthName = new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' });
+        const title = `Financial Statements - ${monthName} ${selectedYear}`;
+
+        doc.text(title, 14, 15);
+ 
+        // Filter out columns that are purely for UI rendering (like the checkmark)
+        // and prepare headers for the PDF table.
+        const head = columns.map(col => col.name);
+
+        // Prepare the body of the table from the 'items' state.
+        const body = items.map(item => {
+            return columns.map(col => {
+                switch (col.key) {
+                    case 'from':
+                        return item.from.toLocaleDateString();
+                    case 'to':
+                        return item.to.toLocaleDateString();
+                    case 'department':
+                        return item.department;
+                    case 'employeeName':
+                        return item.employeeName;
+                    case 'totalHours':
+                        return item.totalHours;
+                    default:
+                    {
+                        // This default case now correctly handles only the dynamic absence type columns
+                        // The key is like 'AbsenceTypeTitle' and fieldName is 'absenceTypes.AbsenceTypeTitle'
+                        const absenceTypeName: string = col.name;
+                        // Using a heavy checkmark which has slightly better font support in some cases.
+                        // The font used in the PDF must support this character.
+                        return item.absenceTypes[absenceTypeName] ? '✔' : '';
+                    }
+                }
+            });
         });
 
-        setItems(mockItems);
-    }, [selectedMonth, selectedYear]);
+    autoTable(doc, {
+        head: [head],
+        body: body,
+        startY: 20,
+        styles: {
+            font: 'NotoSans', // Use the custom font for the table body
+            cellPadding: 2, // Add some padding
+            fontSize: 6,
+        },
+        headStyles: { font: 'NotoSans', fillColor: [22, 160, 133], fontStyle: 'normal' },
+        alternateRowStyles: { fillColor: [240, 240, 240] },
+            // 2. The Hook: Switch font ONLY for the checkmark cells
+        
+        willDrawCell: (data) => {
+            if (data.section === 'body' && data.cell.raw === '✔') {
+                doc.setFont('ZapfDingbats'); // Switch to symbol font
+                data.cell.text = ['4'];      // '4' maps to the heavy checkmark icon
+                    
+                // Optional: Center it nicely
+                data.cell.styles.halign = 'center'; 
+            }
+        },
+
+        // 3. Reset the font immediately after so the next cell (Department, etc.)
+        // doesn't try to render in ZapfDingbats (which would look like garbage).
+        didDrawCell: (data) => {
+             // Always reset to your main font
+            doc.setFont('NotoSans');
+        }
+    });
+
+
+        
+        doc.save(`FinancialStatements-${monthName}-${selectedYear}.pdf`);
+    };
+
+
+    useEffect(() => {
+        const loadData = async (): Promise<void> => {
+            setIsLoading(true);
+            try {
+                await setFSRows();
+            } catch (error) {
+                console.error("Error fetching financial statement data:", error);
+            }
+            setIsLoading(false);
+        }
+        loadData().catch(error => {
+            console.error("Error in loadData:", error);
+        });
+    }, [selectedMonth, selectedYear, sp]); // Added sp to dependency array for correctness
 
     return (
         <div>
@@ -166,18 +314,24 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
                     <h3>{new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} - {selectedYear}</h3>
                     <IconButton iconProps={rightNavigationIcon} onClick={setNextMonth} disabled={isNextMonthDisabled} aria-label="Next month" title="Next month" />
                 </div>
-                <PrimaryButton>Download PDF</PrimaryButton>
+                <PrimaryButton onClick={handleDownloadPdf} disabled={isLoading || items.length === 0}>Download PDF</PrimaryButton>
             </div>
-            <DetailsList
-                items={items}
-                columns={columns}
-                setKey="set"
-                layoutMode={DetailsListLayoutMode.justified}
-                constrainMode={ConstrainMode.horizontalConstrained}
-                selectionMode={SelectionMode.none}
-                isHeaderVisible={true}
-                compact={true}
-            />
+            {isLoading ? (
+                <Spinner size={SpinnerSize.large} label="Loading financial statements..." />
+            ) : (
+                <DetailsList
+                    items={items}
+                    columns={columns}
+                    className={styles.statementDetailsList}
+                    setKey="set"
+                    layoutMode={DetailsListLayoutMode.justified}
+                    constrainMode={ConstrainMode.horizontalConstrained}
+                    selectionMode={SelectionMode.none}
+                    isHeaderVisible={true}
+                    compact={true}
+                />
+            )}
+
             {/* Month selector and PDF download button*/}
             {/*grid displaying info rows contain: */}
             {/*Department | employee name | From | To | PTO used up | AbsenceTypes with FinancialStatement = true*/}

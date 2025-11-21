@@ -136,8 +136,11 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     }
 
 
-    const addAbsence = async (PTOHours: number): Promise<void> => {
+    const addAbsence = async (PTOHours: number[]): Promise<void> => {
         try {
+            let totalPTOHours = 0;
+            PTOHours.forEach(hours => {totalPTOHours += hours});
+
             const list = sp.web.lists.getByTitle("Absence");
             // When adding an item with a lookup field, you must use the 'FieldNameId' syntax.
             const bossMan: IContact = await getValidLeader(user);
@@ -149,7 +152,9 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                 To: newAbsence.To,
                 Notes: newAbsence.Notes,
                 NoteForLeader: newAbsence.NoteForLeader,
-                HoursUsed: PTOHours
+                HoursUsed: totalPTOHours,
+                FirstMonth: PTOHours[0],
+                SecondMonth: PTOHours[1]
             };
             await list.items.add(itemToAdd);
             //Need to request approval after being created
@@ -175,68 +180,58 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         return day === 6 || day === 0; // 6 = Saturday, 0 = Sunday
     };
 
-    const calculateWorkdays = async (from: Date, to: Date): Promise<number> => {
-        const holidays = getHolidaysForDateRange(from.getFullYear(), to.getFullYear());
-        let workdays = 0;
-        let currentDate = new Date(from);
-    
-        while (currentDate <= to) {
-            if (!isWeekend(currentDate)) {
-                const currentUTCDate = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()));
-                const isHoliday = holidays.some(holiday => holiday.getTime() === currentUTCDate.getTime());
-                if (!isHoliday) {
-                    workdays++;
-                }
-            }
-            currentDate = addDays(currentDate, 1);
-        }
-        return workdays;
-    };
 
 
-    const calculatePTOHours = async (from: Date, to: Date): Promise<number> => {
+    /**
+     * Calculates PTO hours for a given date range and splits them by month.
+     * This function is currently unused but is intended for future implementation
+     * where absences spanning multiple months need to be saved as separate records.
+     * @param from The start date of the absence.
+     * @param to The end date of the absence.
+     * @returns A promise that resolves to an object with month keys (YYYY-MM) and hour values.
+     */
+    const calculatePTOHoursByMonth = async (from: Date, to: Date): Promise<number[]> => {
         const holidays = getHolidaysForDateRange(from.getFullYear(), to.getFullYear());
+        const workDayHours: number = await fetchUserWorkHours(sp, user.Id);
+        const ptoHoursByMonth: number[] = [];
+        const firstMonth = from.getMonth();
+
+
+
         const isWorkday = (date: Date): boolean => {
             if (isWeekend(date)) return false;
             const currentUTCDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
             return !holidays.some(holiday => holiday.getTime() === currentUTCDate.getTime());
         };
 
-        const workDayHours: number = await fetchUserWorkHours(sp, user.Id);
-        const isSameDay = from.toDateString() === to.toDateString();
-        const workdays = await calculateWorkdays(from, to);
+        let currentDate = new Date(from);
+        currentDate.setHours(0, 0, 0, 0); // Start iteration from the beginning of the day
 
-        if (workdays === 0) {
-            return 0;
-        }
-    
-        const getHoursForTimeType = (timeType: TimeSelectionType, customHours: number): number => {
-            switch (timeType) {
-                case 'FullDay': return workDayHours;
-                case 'HalfDayAM':
-                case 'HalfDayPM': return workDayHours / 2;
-                case 'Hourly': return customHours;
-                default: return 0;
+        while (currentDate <= to) {
+            if (isWorkday(currentDate)) {
+                let hoursForDay = 0;
+                const isStartDay = currentDate.toDateString() === from.toDateString();
+                const isEndDay = currentDate.toDateString() === to.toDateString();
+                const isSingleDayRequest = from.toDateString() === to.toDateString();
+
+                if (isSingleDayRequest || isStartDay) {
+                    hoursForDay = startDayTimeType === 'FullDay' ? workDayHours : (startDayTimeType === 'Hourly' ? startDayHours : workDayHours / 2);
+                } else if (isEndDay) {
+                    hoursForDay = endDayTimeType === 'FullDay' ? workDayHours : (endDayTimeType === 'Hourly' ? endDayHours : workDayHours / 2);
+                } else { // Full day in between
+                    hoursForDay = workDayHours;
+                }
+                if (currentDate.getMonth() === firstMonth) {
+                    ptoHoursByMonth[0] = (ptoHoursByMonth[0] || 0) + hoursForDay;
+                } else {
+                    ptoHoursByMonth[1] = (ptoHoursByMonth[1] || 0) + hoursForDay;
+                }
+
             }
-        };
-    
-        if (isSameDay) {
-            // For a single day request, it must be a workday to count.
-            return isWorkday(from) ? getHoursForTimeType(startDayTimeType, startDayHours) : 0;
-        } 
-        
-        // For multi-day requests
-        const startDayHoursUsed = isWorkday(from) ? getHoursForTimeType(startDayTimeType, startDayHours) : 0;
-        const endDayHoursUsed = isWorkday(to) ? getHoursForTimeType(endDayTimeType, endDayHours) : 0;
-    
-        // Adjust workday count based on whether start/end days are workdays
-        let fullWorkdaysInBetween = workdays;
-        if (isWorkday(from)) fullWorkdaysInBetween--;
-        if (isWorkday(to)) fullWorkdaysInBetween--;
+            currentDate = addDays(currentDate, 1);
+        }
 
-        const hoursForFullDays = fullWorkdaysInBetween * workDayHours;
-    
-        return startDayHoursUsed + endDayHoursUsed + hoursForFullDays;
+        return ptoHoursByMonth;
     }
 
 
@@ -275,7 +270,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
         // The PTO calculation is now done in useEffect, we just need to re-verify
         // in case something changed. The result should be cached and fast.
-        const ptoHours = await calculatePTOHours(newAbsence.From, newAbsence.To);
+        const ptoHours = await calculatePTOHoursByMonth(newAbsence.From, newAbsence.To);
         
         await addAbsence(ptoHours);
         onUpdate();
@@ -374,10 +369,11 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     useEffect(() => {
         const validateAndCalculatePTO = async (): Promise<void> => {
             if (absenceTypes.some(type => type.TakesPTO && type.Id === newAbsence.AbsenceType.Id)) {
-                const ptoHours = await calculatePTOHours(newAbsence.From, newAbsence.To);
+                const ptoHours = await calculatePTOHoursByMonth(newAbsence.From, newAbsence.To);
                 const hoursLeft = await PTOHoursLeft(sp, user.Id);
-
-                if (ptoHours > hoursLeft) {
+                let totalPTOHours = 0;
+                ptoHours.forEach(hours => {totalPTOHours += hours});
+                if (totalPTOHours > hoursLeft) {
                     setErrors(prev => ({ ...prev, pto: `You do not have enough PTO. You are requesting ${ptoHours} hours, but you only have ${hoursLeft} hours left.` }));
                 } else {
                     setErrors(prev => ({ ...prev, pto: undefined }));

@@ -122,7 +122,8 @@ export const fetchAllAbsences = async (sp: SPFI): Promise<IAbsence[]> => {
                 .select('Id', 'Title', 
                     'Employee/Id', 'Employee/Title', 
                     'AbsenceTypeId', 'AbsenceType/Title', 'To',
-                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee, AbsenceType')();
+                    'From', 'Notes', 'NoteForLeader', 'Approved',
+                    'FirstMonth', 'SecondMonth', 'HoursUsed').expand('Employee, AbsenceType')();
     
             return result as IAbsence[];
         } catch (exception){
