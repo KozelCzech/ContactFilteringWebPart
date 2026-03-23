@@ -3,7 +3,7 @@ import styles from './AbsenceList.module.scss';
 import { SPFI } from '@pnp/sp';
 import { useEffect } from 'react';
 import { IAbsence, IAbsenceType } from '../AbsenceInterfaces';
-import { ConstrainMode, DetailsList, DetailsListLayoutMode, Dropdown, IColumn, IconButton, IDropdownOption, PivotItem, PrimaryButton, SelectionMode, TextField } from '@fluentui/react';
+import { Checkbox, ConstrainMode, DetailsList, DetailsListLayoutMode, Dropdown, IColumn, IconButton, IDropdownOption, PivotItem, PrimaryButton, SelectionMode, TextField } from '@fluentui/react';
 import { CheckmarkFilled, DismissFilled } from '@fluentui/react-icons';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -11,8 +11,10 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { formatDate, getCzechHolidaysCallendarEvents } from '../../../../../utils/dateUtils';
 import { IContact } from '../../../models/IContact';
 import TabsView from '../../subComponents/tabsView/tabsView';
+import { fetchAllDepartments, fetchEmployeeIdsByDepartment } from '../../../../../utils/userUtils';
 
 import dayGridPlugin from '@fullcalendar/daygrid';
+import cs from '@fullcalendar/core/locales/cs';
 
 
 export interface AbsenceListProps {
@@ -42,9 +44,12 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
     const [ absenceTypeOptions, setAbsenceTypeOptions ] = React.useState<IDropdownOption[]>([]);
 
     const [ absenceType, setAbsenceType ] = React.useState<IAbsenceType | undefined>(undefined);
+    const [ departmentKey, setDepartmentKey ] = React.useState<string | number>("");
+    const [ departmentOptions, setDepartmentOptions ] = React.useState<IDropdownOption[]>([]);
     const [ nameText, setNameText ] = React.useState<string>('');
     const [ activeFilter, setActiveFilter ] = React.useState<string>('');
     const [ activeNameFilter, setActiveNameFilter ] = React.useState<string>('');
+    const [ showPastMonth, setShowPastMonth ] = React.useState<boolean>(false);
 
 
 
@@ -55,7 +60,7 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
                 .select('Id', 'Title', 
                     'Employee/Id', 'Employee/Title',
                     'AbsenceType/Id', 'AbsenceType/Title', 'To',
-                    'From', 'Notes', 'NoteForLeader', 'Approved').expand('Employee,AbsenceType');
+                    'From', 'Notes', 'NoteForLeader', 'Approved', 'Rejected').expand('Employee,AbsenceType');
             
             const result = filter ? await items.filter(filter)() : await items();
 
@@ -160,12 +165,34 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
         }
       };
 
-    const createFilter = (): void => {
+    const onDepartmentChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
+        if (option) {
+            setDepartmentKey(option.key);
+        } else {
+            setDepartmentKey("");
+        }
+    };
+
+    const onShowPastMonthChange = (ev?: React.FormEvent<HTMLElement | HTMLInputElement>, isChecked?: boolean): void => {
+        setShowPastMonth(!!isChecked);
+    }
+
+    const createFilter = async (): Promise<void> => {
         const filterParts: string[] = [];
         if (absenceType) {
             filterParts.push(`(AbsenceTypeId eq '${absenceType.Id}')`);
         }
 
+        if (departmentKey) {
+            const uniqueEmployeeIds = await fetchEmployeeIdsByDepartment(sp, departmentKey as number);
+            if (uniqueEmployeeIds.length > 0) {
+                const idFilter = uniqueEmployeeIds.map(id => `Employee/Id eq ${id}`).join(' or ');
+                filterParts.push(`(${idFilter})`);
+            } else {
+                filterParts.push(`(Employee/Id eq -1)`);
+            }
+        }
+        filterParts.push(`(Rejected eq false)`);
         const combinedFilter = filterParts.join(' and ');
         setActiveFilter(combinedFilter);
         setActiveNameFilter(nameText);
@@ -174,8 +201,10 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
     const onClearFilterClick = (): void => {
         setNameText('');
         setAbsenceType(undefined);
+        setDepartmentKey("");
         setActiveFilter('');
         setActiveNameFilter('');
+        setShowPastMonth(false);
     }
 
 
@@ -187,6 +216,11 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
         fetchAbsenceTypes().catch(error => {
             console.error("An error occurred during absence types load:", error);
         });
+        fetchAllDepartments(sp).then(departments => {
+            const options: IDropdownOption[] = departments.map(dep => ({ key: dep.UniqueCode, text: `${dep.UniqueCode} - ${dep.Title}`}));
+            options.unshift({ key: "", text: "Všechna oddělení" });
+            setDepartmentOptions(options);
+        }).catch(error => console.error("Error fetching departments:", error));
     }, []);
 
     useEffect(() => {
@@ -208,17 +242,22 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
             const today = new Date();
             today.setHours(0, 0, 0, 0); // Start of today for comparison
             
+            let cutoffDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            if (showPastMonth) {
+                cutoffDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            }
+            
             filtered = filtered.filter(absence => {
                 const toDate = new Date(absence.To);
                 toDate.setHours(0, 0, 0, 0);
 
                 // Show any absence that has not ended before today.
-                return toDate >= today;
+                return toDate >= cutoffDate;
             });
         }
 
         setDisplayedAbsences(filtered);
-    }, [absences, contacts, activeNameFilter, showHistory]);
+    }, [absences, contacts, activeNameFilter, showHistory, showPastMonth]);
 
     useEffect(() => {
     
@@ -236,7 +275,7 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
                 if (employee) {
                     return <span>{employee.FirstName} {employee.LastName}</span>;
                 }
-                return <span>Unknown Employee</span>;
+                return <span>Neznámý zaměstnanec</span>;
             }
         },
         {
@@ -244,12 +283,12 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
             onRender: (item: IAbsence) => <span>{item.AbsenceType.Title}</span>,
         },
         {
-            key: 'from', name: 'Od', fieldName: 'From', minWidth: 65, isResizable: true,
+            key: 'from', name: 'Od', fieldName: 'From', minWidth: 100, isResizable: true,
             // 2. Use onRender to format the date cell
             onRender: (item: IAbsence) => <span>{formatDate(item.From.toString())}</span>,
         },
         {
-            key: 'to', name: 'Do', fieldName: 'To', minWidth: 65, isResizable: true,
+            key: 'to', name: 'Do', fieldName: 'To', minWidth: 100, isResizable: true,
             onRender: (item: IAbsence) => <span>{formatDate(item.To.toString())}</span>,
         },
         {
@@ -259,42 +298,55 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
             key: 'status', name: 'Potvrzeno', fieldName: 'Approved', minWidth: 65, isResizable: true,
             // 3. Use onRender to create a modern status badge
             onRender: (item: IAbsence) => (
-                <span className={item.Approved ? styles.statusApproved : styles.statusPending}>
-                    {item.Approved ? <CheckmarkFilled title="Approved" /> : <DismissFilled title="Pending" />}
+                <span className={item.Approved ? styles.statusApproved : styles.statusPending} title={item.Approved ? "Schváleno" : "Čeká na schválení"}>
+                    {item.Approved ? <CheckmarkFilled /> : <DismissFilled />}
                 </span>
             ),
         },
     ];
 
+    const validRangeStart = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
 
     return (
         <div> 
             <div className={styles.filtersContainer}>
-                <TextField label="Name:" placeholder="Enter first or last name..." 
+                <TextField label="Jméno:" placeholder="Zadejte jméno nebo příjmení..." 
                     value={nameText} 
                     onChange={onNameChange} />
                 <Dropdown
-                    label="Absence Type:"
-                    placeholder="Select an Absence Type"
+                    label="Typ absence:"
+                    placeholder="Vyberte typ absence"
                     options={absenceTypeOptions}
                     selectedKey={absenceType ? absenceType.Id : null}
                     onChange={onOptionChange}
                     />
+                <Dropdown
+                    label="Oddělení:"
+                    placeholder="Vyberte oddělení"
+                    options={departmentOptions}
+                    selectedKey={departmentKey}
+                    onChange={onDepartmentChange}
+                    />
+                <Checkbox 
+                    label="Zobrazit historii (1 měsíc)" 
+                    checked={showPastMonth} 
+                    onChange={onShowPastMonthChange} 
+                    styles={{ root: { marginTop: 30 } }} />
             </div>
             <div className={styles.actionsContainer}>
                 <div className={styles.leftActions}>
-                    <PrimaryButton text="Apply Filters" onClick={createFilter} style={{ marginRight: '8px' }} />
-                    <PrimaryButton text="Clear Filters" onClick={onClearFilterClick} />
+                    <PrimaryButton text="Použít filtry" onClick={createFilter} style={{ marginRight: '8px' }} />
+                    <PrimaryButton text="Vymazat filtry" onClick={onClearFilterClick} />
                 </div>
                 <IconButton
                     iconProps={{ iconName: 'Refresh' }}
-                    title="Refresh"
-                    ariaLabel="Refresh"
+                    title="Obnovit"
+                    ariaLabel="Obnovit"
                     onClick={() => loadInitialData(activeFilter)}
                 />
             </div>
             <TabsView>
-                <PivotItem headerText='List' itemKey='list'> {/* if the TimeType isnt FullDay, display the time too */}
+                <PivotItem headerText='Seznam' itemKey='list'> {/* if the TimeType isnt FullDay, display the time too */}
                     <DetailsList
                         items={displayedAbsences}
                         columns={columns}
@@ -305,7 +357,7 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
                         isHeaderVisible={true} 
                         compact={true} />
                 </PivotItem>
-                <PivotItem headerText='Calendar' itemKey='calendar'>
+                <PivotItem headerText='Kalendář' itemKey='calendar'>
                     <FullCalendar
                         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                         eventSources={[
@@ -318,8 +370,13 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
                             center: '',
                             right: 'today prev,next'
                         }}
+                        locale={cs}
+                        firstDay={1}
 
-                        initialView='dayGridMonth'
+                        initialView='dayGridMonth'  
+                        validRange={{
+                            start: validRangeStart
+                        }}
                 
                         editable={false} 
                         selectable={true}

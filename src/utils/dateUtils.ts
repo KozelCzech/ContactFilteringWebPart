@@ -8,9 +8,11 @@ export const formatDate = (dateString: string): string => {
         year: "numeric",
         month: "numeric",
         day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
     };
 
-    return new Intl.DateTimeFormat("en-UK", options).format(new Date(dateString))
+    return new Intl.DateTimeFormat("cs-CZ", options).format(new Date(dateString))
 }
 
 export interface IHoliday {

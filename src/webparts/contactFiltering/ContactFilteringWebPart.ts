@@ -17,6 +17,7 @@ import '@pnp/sp/lists';
 import '@pnp/sp/items';
 import '@pnp/sp/site-users/web';
 import '@pnp/sp/fields';
+import { graphfi, GraphFI, SPFx as graphSPFx, } from '@pnp/graph';
 
 export interface IContactFilteringWebPartProps {
   description: string;
@@ -25,12 +26,14 @@ export interface IContactFilteringWebPartProps {
 export default class ContactFilteringWebPart extends BaseClientSideWebPart<IContactFilteringWebPartProps> {
 
   private _sp: SPFI;
+  private _graph: GraphFI;
 
   public render(): void {
     const element: React.ReactElement<IContactFilteringProps> = React.createElement(
       ContactFiltering,
       {
         sp: this._sp,
+        graph: this._graph,
         webAbsoluteUrl: this.context.pageContext.web.absoluteUrl,
         description: this.properties.description,
         userDisplayName: this.context.pageContext.user.displayName
@@ -43,7 +46,7 @@ export default class ContactFilteringWebPart extends BaseClientSideWebPart<ICont
   protected async onInit(): Promise<void> {
     await super.onInit();
     this._sp = spfi().using(SPFx(this.context));
-
+    this._graph = graphfi().using(graphSPFx(this.context))
   }
 
 

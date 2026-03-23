@@ -8,7 +8,7 @@ export interface IModalProps {
     isOpen: boolean;
     onClose: () => void;
     children: React.ReactNode;
-    width?: 'large';
+    width?: 'small' | 'medium' | 'mediumLarge' | 'large';
 }
 
 

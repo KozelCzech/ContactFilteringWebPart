@@ -16,7 +16,7 @@
     padding: 20px;
     border-radius: 8px;
     position: relative;
-    width: 600px; /* Default width */
+    width: 800px; /* Default width */
     max-width: 95%;
     max-height: 90vh;
     overflow-y: auto;
@@ -26,7 +26,22 @@
 
 .large {
     width: 90%;
-    max-width: 1400px; /* A much larger max-width for wide tables */
+    max-width: 1600px; /* A much larger max-width for wide tables */
+}
+
+.mediumLarge {
+    width: 80%;
+    max-width: 1300px;
+}
+
+.medium {
+    width: 70%;
+    max-width: 1000px;
+}
+
+.small {
+    width: 60%;
+    max-width: 800px;
 }
 
 .header {

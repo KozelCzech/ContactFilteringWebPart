@@ -1,23 +1,27 @@
 import * as React from 'react';
 import styles from './RequestAbsence.module.scss';
 import { IContact } from '../../../models/IContact';
-import { DatePicker, DayOfWeek, DefaultButton, Dropdown, IDropdownOption, PrimaryButton, TextField, IChoiceGroupOption, ChoiceGroup } from '@fluentui/react';
+import { DatePicker, DayOfWeek, DefaultButton, Dropdown, IDropdownOption, PrimaryButton, TextField, IChoiceGroupOption, ChoiceGroup, TimePicker } from '@fluentui/react';
 import { CzechDatePickerStrings } from '../../../localization/cs-CZ'
 import { IAbsence, IAbsenceType } from '../AbsenceInterfaces';
 import { useEffect, useState } from 'react';
 import { SPFI } from '@pnp/sp';
+import { GraphFI } from '@pnp/graph';
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/fields";
 import { addDays } from '@fluentui/date-time-utilities';
-import { fetchUserWorkHours, getLeaderInfo } from '../../../../../utils/userUtils';
+import { fetchAllUsers, fetchDepartmentByDepartmentId, fetchDepartmentByUserId, fetchMainCommitment, fetchUserById, fetchUserWorkHours, ICommitment, IDepartment, isUserInGroup } from '../../../../../utils/userUtils';
 import { getCzechHolidays } from '../../../../../utils/dateUtils';
 import { fetchAbsenceTypes, PTOHoursLeft } from '../../../../../utils/ptoUtils';
+import { requestType, sendAbsenceEmail } from '../../../../../utils/emailUtils';
 
 
 export interface IRequestAbsenceProps {
     user: IContact;
     sp: SPFI;
+    graph: GraphFI;
+    existingAbsence?: IAbsence;
     onUpdate: () => void;
 }
 
@@ -26,6 +30,7 @@ interface IAbsenceValidationErrors {
     from?: string;
     to?: string;
     pto?: string;
+    user?: string;
 }
 
 
@@ -35,8 +40,20 @@ type TimeSelectionType = 'FullDay' | 'HalfDayAM' | 'HalfDayPM' | 'Hourly';
 
 
 const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
-    const { user, sp, onUpdate} = props;
-    const [ newAbsence, setNewAbsence ] = useState<IAbsence>(() => {
+    const { user, sp, graph, existingAbsence, onUpdate } = props;
+    const [newAbsence, setNewAbsence] = useState<IAbsence>(() => {
+        if (existingAbsence) {
+            return {
+                ...existingAbsence,
+                AbsenceType: {
+                    Id: existingAbsence.AbsenceType?.Id || (existingAbsence as IAbsence & { AbsenceTypeId: number }).AbsenceTypeId,
+                    Title: existingAbsence.AbsenceType?.Title || ''
+                },
+                From: new Date(existingAbsence.From),
+                To: new Date(existingAbsence.To),
+            };
+        }
+
         const fromDate = new Date();
         fromDate.setHours(0, 0, 0, 0);
 
@@ -52,19 +69,35 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             Notes: '',
             NoteForLeader: '',
             Approved: false,
+            Rejected: false,
             Title: '',
-            Approvee: {Id: 0, Title: ''},
+            Approvee: { Id: 0, Title: '' },
             TimeType: '',
             HoursUsed: 0
         };
     });
-    const [ errors, setErrors ] = useState<IAbsenceValidationErrors>({});
-    const [ absenceTypes, setAbsenceTypes ] = useState<IAbsenceType[]>([]);
-    const [ absenceTypeOptions, setAbsenceTypeOptions ] = useState<IDropdownOption[]>([]);
-    const [ startDayTimeType, setStartDayTimeType ] = useState<TimeSelectionType>('FullDay');
-    const [ endDayTimeType, setEndDayTimeType ] = useState<TimeSelectionType>('FullDay');
-    const [ startDayHours, setStartDayHours ] = useState<number>(8);
-    const [ endDayHours, setEndDayHours ] = useState<number>(8);
+    const [errors, setErrors] = useState<IAbsenceValidationErrors>({});
+    const [absenceTypes, setAbsenceTypes] = useState<IAbsenceType[]>([]);
+
+    const [startDayTimeType, setStartDayTimeType] = useState<TimeSelectionType>('FullDay');
+
+    const [startDayHours, setStartDayHours] = useState<number>(8);
+    const [fromTime, setFromTime] = useState<Date>(() => {
+        if (existingAbsence) return new Date(existingAbsence.From);
+        const d = new Date(); d.setHours(8, 0, 0, 0); return d;
+    });
+    const [toTime, setToTime] = useState<Date>(() => {
+        if (existingAbsence) return new Date(existingAbsence.To);
+        const d = new Date(); d.setHours(16, 0, 0, 0); return d;
+    });
+    const [totalHoursRequested, setTotalHoursRequested] = useState<number>(0);
+    const [totalDaysRequested, setTotalDaysRequested] = useState<number>(0);
+
+    const [delegatedAbsence, setDelegatedAbsence] = useState<boolean>(false);
+    const [allUsers, setAllUsers] = useState<IContact[]>([]);
+    const [mainCommitment, setMainCommitment] = useState<ICommitment | undefined>(undefined);
+    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
 
     const timeTypeOptions: IChoiceGroupOption[] = [
         { key: 'FullDay', text: 'Celý den' },
@@ -76,16 +109,23 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     const onStartDayTimeTypeChange = (ev?: React.FormEvent<HTMLElement | HTMLInputElement>, option?: IChoiceGroupOption): void => {
         if (option) setStartDayTimeType(option.key as TimeSelectionType);
     };
-    const onEndDayTimeTypeChange = (ev?: React.FormEvent<HTMLElement | HTMLInputElement>, option?: IChoiceGroupOption): void => {
-        if (option) setEndDayTimeType(option.key as TimeSelectionType);
-    };
+
+    const getMainCommitment = async (personId: number): Promise<ICommitment | undefined> => {
+        try {
+            const commitment = await fetchMainCommitment(sp, personId);
+            return commitment;
+        } catch (exception) {
+            console.error(exception);
+            return undefined;
+        }
+    }
 
 
     const isOnLeave = async (personId: number): Promise<boolean> => {
-        try{
+        try {
             const result = await sp.web.lists.getByTitle("Absence").items
-                .select('Id', 'Title', 
-                    'Employee/Id', 'Employee/Title', 
+                .select('Id', 'Title',
+                    'Employee/Id', 'Employee/Title',
                     'AbsenceType/Id', 'AbsenceType/Title', 'To',
                     'From', 'Notes', 'NoteForLeader',
                     'Approved', 'Approvee/Id', 'Approvee/Title')
@@ -93,9 +133,15 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                 .filter(`Employee/Id eq ${personId} and Approved eq 1`)();
 
             const absences: IAbsence[] = result as IAbsence[];
+
             const today = new Date;
 
-            return absences.some(abs => new Date(abs.From) <= today && new Date(abs.To) >= today);
+
+            return absences.some(abs => {
+                const isDateMatch = new Date(abs.From) <= today && new Date(abs.To) >= today;
+                const type = absenceTypes.find(t => t.Id === abs.AbsenceType.Id);
+                return isDateMatch && (type ? type.isAbsent : true);
+            });
         } catch (exception) {
             console.error(exception);
             return false;
@@ -103,35 +149,70 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     }
 
 
-    const getValidLeader = async (person: IContact, depth = 0): Promise<IContact> => {
+    const getDepartmentLeader = async (department: IDepartment): Promise<IContact> => {
         try {
-            if (depth > 10) { // Add a depth limit to prevent infinite recursion
-                throw new Error("Could not find a valid leader within 10 levels of hierarchy.");
-            }
-            // 1. Check primary leader
-            if (person.Leader) {
-                const isLeaderOnLeave = await isOnLeave(person.Leader.Id || person.Leader.ID || 0);
-                if (!isLeaderOnLeave) return person.Leader; // Return the leader if they are not on leave
-            }
- 
-            // 2. If primary leader is unavailable, check backup leader
-            if (person.BackupLeader) {
-                const isBackupLeaderOnLeave = await isOnLeave(person.BackupLeader.Id || person.BackupLeader.ID || 0);
-                if (!isBackupLeaderOnLeave) return person.BackupLeader; // Return backup if not on leave
+            if (department.Leader) {
+                const isGroupLeaderOnLeave = await isOnLeave(department.Leader.Id || department.Leader.ID || 0);
+                if (!isGroupLeaderOnLeave) {
+                    return department.Leader;
+                }
             }
 
-            // 3. If both are unavailable, fall back to the department leader logic.
-            // Use the 'person' from the current recursive call, not the original 'user'.
-            const departmentLeaderInfo = await getLeaderInfo(sp, person);
-            const isDepartmentLeaderOnLeave = await isOnLeave(departmentLeaderInfo.Id);
-            if (!isDepartmentLeaderOnLeave) {
-                return departmentLeaderInfo; // Return department leader if not on leave
-            } else {
-                return getValidLeader(departmentLeaderInfo, depth + 1); // Recurse with the next leader
+            if (!department.LeaderDepartment || !department.LeaderDepartment.Id || department.LeaderDepartment.Id === department.Id) {
+                return department.Leader || { Id: 0, Title: '' };
             }
+
+
+            const leadDepartment = await fetchDepartmentByDepartmentId(sp, department.LeaderDepartment.Id);
+            if (leadDepartment) {
+                return getDepartmentLeader(leadDepartment);
+            }
+
+            return { Id: 0, Title: '' };
+        } catch (error) {
+            console.error("Error finding leader: ", error);
+            return { Id: 0, Title: '' };
+        }
+    }
+
+
+    const getValidLeader = async (absentPerson: IContact): Promise<IContact> => {
+        try {
+            const person = await fetchUserById(sp, absentPerson.Id);
+
+            // 1. Try Direct Leader
+            if (person.Leader) {
+                const isOnLeaveStatus = await isOnLeave(person.Leader.Id || person.Leader.ID || 0);
+                if (!isOnLeaveStatus) {
+                    return person.Leader;
+                }
+                else {
+                    console.info("No Direct Leader")
+                }
+            }
+
+            // 2. Try Backup Leader
+            if (person.BackupLeader) {
+                const isBackupOnLeave = await isOnLeave(person.BackupLeader.Id || person.BackupLeader.ID || 0);
+                if (!isBackupOnLeave) {
+                    return person.BackupLeader;
+                }
+                else {
+                    console.info("No Backup Leader");
+                }
+            }
+
+            // 3. Escalation Logic
+            const userDept = await fetchDepartmentByUserId(sp, person.Id);
+            if (userDept) {
+                const leader = await getDepartmentLeader(userDept);
+                if (leader) return leader;
+            }
+
+            return { Id: 0, Title: '' };
         } catch (exception) {
-            console.error("Couldnt get any leader! " + exception);
-            return {Id: 0, Title: ''};   
+            console.error("Error finding leader: ", exception);
+            return { Id: 0, Title: '' };
         }
     }
 
@@ -139,11 +220,11 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     const addAbsence = async (PTOHours: number[]): Promise<void> => {
         try {
             let totalPTOHours = 0;
-            PTOHours.forEach(hours => {totalPTOHours += hours});
+            PTOHours.forEach(hours => { totalPTOHours += hours });
 
             const list = sp.web.lists.getByTitle("Absence");
             // When adding an item with a lookup field, you must use the 'FieldNameId' syntax.
-            const bossMan: IContact = await getValidLeader(user);
+            const bossMan: IContact = await getValidLeader(newAbsence.Employee);
             const itemToAdd = {
                 EmployeeId: newAbsence.Employee.Id,
                 ApproveeId: bossMan.Id || bossMan.ID,
@@ -151,14 +232,20 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                 From: newAbsence.From,
                 To: newAbsence.To,
                 Notes: newAbsence.Notes,
+                Approved: false,
+                Rejected: false,
                 NoteForLeader: newAbsence.NoteForLeader,
                 HoursUsed: totalPTOHours,
                 FirstMonth: PTOHours[0],
                 SecondMonth: PTOHours[1]
             };
-            await list.items.add(itemToAdd);
+            if (existingAbsence && existingAbsence.Id) {
+                await list.items.getById(existingAbsence.Id).update(itemToAdd);
+            } else {
+                await list.items.add(itemToAdd);
+            }
             //Need to request approval after being created
-            //Email Leader if he isnt absent, else email backup leader
+            //TODO: Email Leader if he isnt absent, else email backup leader
             // if person doesnt have a leader themselves, look into department leader
         } catch (exception) {
             console.error("Error adding absence: ", exception);
@@ -211,13 +298,10 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             if (isWorkday(currentDate)) {
                 let hoursForDay = 0;
                 const isStartDay = currentDate.toDateString() === from.toDateString();
-                const isEndDay = currentDate.toDateString() === to.toDateString();
                 const isSingleDayRequest = from.toDateString() === to.toDateString();
 
                 if (isSingleDayRequest || isStartDay) {
                     hoursForDay = startDayTimeType === 'FullDay' ? workDayHours : (startDayTimeType === 'Hourly' ? startDayHours : workDayHours / 2);
-                } else if (isEndDay) {
-                    hoursForDay = endDayTimeType === 'FullDay' ? workDayHours : (endDayTimeType === 'Hourly' ? endDayHours : workDayHours / 2);
                 } else { // Full day in between
                     hoursForDay = workDayHours;
                 }
@@ -236,44 +320,61 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
 
     const handleSaveButton = async (): Promise<void> => {
-        const validationErrors: IAbsenceValidationErrors = {...errors};
-        
-        // --- Validation ---
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Set to midnight to compare dates only
+        if (isSubmitting) return;
+        setIsSubmitting(true);
 
-        if (!newAbsence.AbsenceType || !newAbsence.AbsenceType.Id) {
-            validationErrors.absenceType = 'Please select an absence type.';
+        try {
+            const validationErrors: IAbsenceValidationErrors = { ...errors };
+
+            // --- Validation ---
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Set to midnight to compare dates only
+
+            if (!newAbsence.AbsenceType || !newAbsence.AbsenceType.Id) {
+                validationErrors.absenceType = 'Please select an absence type.';
+            }
+
+            if (newAbsence.To < newAbsence.From) {
+                validationErrors.to = "Datud 'Do' nesmí být před datumem 'Od'.";
+            }
+            setErrors(validationErrors);
+
+
+            const activeErrors = Object.keys(validationErrors).filter(key => validationErrors[key as keyof IAbsenceValidationErrors] !== undefined);
+
+            if (activeErrors.length > 0) {
+                setIsSubmitting(false);
+                return;
+            }
+            // --- End of Validation ---
+
+            // The PTO calculation is now done in useEffect, we just need to re-verify
+            // in case something changed. The result should be cached and fast.
+            let ptoHours = [0, 0];
+            const absenceTypesLocal = await fetchAbsenceTypes(sp);
+
+            const currentType = absenceTypesLocal.find(type => type.Id === newAbsence.AbsenceType.Id);
+
+            if (currentType?.TakesPTO) {
+                ptoHours = await calculatePTOHoursByMonth(newAbsence.From, newAbsence.To);
+            }
+
+            await addAbsence(ptoHours);
+
+            let reqType: requestType;
+            if (!existingAbsence || !existingAbsence.Id) {
+                reqType = 'Created';
+            } else {
+                reqType = 'Updated';
+            }
+            const approvee: IContact = await getValidLeader(newAbsence.Employee);
+            await sendAbsenceEmail(graph, sp, approvee, newAbsence, reqType);
+            onUpdate();
+            setIsSubmitting(false);
+        } catch (error) {
+            console.error(error);
+            setIsSubmitting(false);
         }
-
-        if (newAbsence.To < today && newAbsence.To.toDateString() !== today.toDateString()) {
-            validationErrors.to = "The 'To' date cannot be in the past.";
-        }
-
-        if (newAbsence.From < today && newAbsence.From.toDateString() !== today.toDateString()) {
-            validationErrors.from = "The 'From' date cannot be in the past.";
-        }
-
-        if (newAbsence.To < newAbsence.From) {
-            validationErrors.to = "The 'To' date cannot be before the 'From' date.";
-        }
-        
-        setErrors(validationErrors);
-        
-        
-        const activeErrors = Object.keys(validationErrors).filter(key => validationErrors[key as keyof IAbsenceValidationErrors] !== undefined);
-
-        if (activeErrors.length > 0) {
-            return;
-        }
-        // --- End of Validation ---
-
-        // The PTO calculation is now done in useEffect, we just need to re-verify
-        // in case something changed. The result should be cached and fast.
-        const ptoHours = await calculatePTOHoursByMonth(newAbsence.From, newAbsence.To);
-        
-        await addAbsence(ptoHours);
-        onUpdate();
     }
 
     const handleCloseButton = (): void => {
@@ -284,7 +385,14 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     const onAbsenceTypeChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
         if (option) {
             setErrors(prev => ({ ...prev, absenceType: undefined }));
-            setNewAbsence(prev => ({ ...prev, AbsenceType: {Id: option.key as number, Title: option.text as string} }));
+            setNewAbsence(prev => ({ ...prev, AbsenceType: { Id: option.key as number, Title: option.text as string } }));
+        }
+    }
+
+    const onUserChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
+        if (option) {
+            setErrors(prev => ({ ...prev, absenceType: undefined }));
+            setNewAbsence(prev => ({ ...prev, Employee: { Id: option.key as number, Title: option.text as string } }));
         }
     }
 
@@ -293,7 +401,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             const newToDate = new Date(newAbsence.To);
             newToDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
 
-            switch (endDayTimeType) {
+            switch (startDayTimeType) {
                 case 'FullDay':
                     newToDate.setHours(23, 59, 59, 999);
                     break;
@@ -304,13 +412,19 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                     newToDate.setHours(23, 59, 59, 999); // Assumes PM is afternoon until end of day
                     break;
                 case 'Hourly':
-                    // Time is set by TimePicker, just ensure date part is correct
+                    //Handled in OnHourChange
                     break;
             }
 
             setErrors(prev => ({ ...prev, to: undefined }));
             setNewAbsence(prev => ({ ...prev, To: newToDate }));
         }
+    }
+
+    const onTimeChange = (date: Date | null | undefined, type: 'from' | 'to'): void => {
+        if (!date) return;
+        if (type === 'from') setFromTime(date);
+        else setToTime(date);
     }
 
     const onFromChange = (date: Date | null | undefined): void => {
@@ -328,8 +442,11 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                 case 'HalfDayPM':
                     newFromDate.setHours(12, 0, 0, 0); // Starts at noon
                     break;
-                case 'Hourly':
-                    // Time is set by TimePicker, just ensure date part is correct
+                case 'Hourly': {
+                    const newToDate = new Date(newAbsence.To);
+                    newToDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+                    setNewAbsence(prev => ({ ...prev, To: newToDate }));
+                }
                     break;
             }
 
@@ -346,35 +463,159 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
         setNewAbsence(prev => ({ ...prev, NoteForLeader: newValue || '' }));
     }
 
+    const onFormatDate = (date?: Date): string => {
+        return !date ? '' : `${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`;
+    };
+
+    const onParseDateFromString = (value: string): Date | null => {
+        const values = (value || '').trim().split('.');
+        const day = values.length > 0 ? parseInt(values[0], 10) : NaN;
+        const month = values.length > 1 ? parseInt(values[1], 10) - 1 : NaN;
+        let year = values.length > 2 ? parseInt(values[2], 10) : NaN;
+
+        if (year && year < 100) {
+            year += 2000;
+        }
+
+        if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+            return new Date(year, month, day);
+        }
+        return null;
+    };
+
     useEffect(() => {
         if (sp) {
+
             fetchAbsenceTypes(sp)
                 .then(types => {
                     setAbsenceTypes(types);
-                    if (types && types.length > 0) {
-                        const options: IDropdownOption[] = types.map(choice => ({
-                            key: choice.Id,
-                            text: choice.Title
-                        }));
-                        setAbsenceTypeOptions(options);
-                    }
                 })
                 .catch(error => {
                     console.error("Error fetching absence types: ", error);
                     setErrors(prev => ({ ...prev, absenceType: "Could not load absence types." }));
                 });
+
+            isUserInGroup(props.sp, "delegatedAbsences").then(result => {
+                setDelegatedAbsence(result);
+            }).catch(error => console.error("Error fetching user email:", error));
         }
     }, [sp]);
 
+
+    useEffect(() => {
+        getMainCommitment(user.Id).then(commitment => {
+            if (commitment) {
+                setMainCommitment(commitment);
+            }
+        }).catch(console.error);
+    }, [sp, user])
+
+
+    useEffect(() => {
+        if (!existingAbsence && absenceTypes.length > 0) {
+
+            setNewAbsence(prev => {
+                if (prev.AbsenceType.Id === 0) {
+                    return { ...prev, AbsenceType: absenceTypes[0] };
+                }
+                return prev;
+            });
+        }
+        else if (existingAbsence) {
+            setNewAbsence({
+                ...existingAbsence,
+                AbsenceType: {
+                    Id: existingAbsence.AbsenceType?.Id || (existingAbsence as IAbsence & { AbsenceTypeId: number }).AbsenceTypeId,
+                    Title: existingAbsence.AbsenceType?.Title || ''
+                },
+                From: new Date(existingAbsence.From),
+                To: new Date(existingAbsence.To),
+            });
+        }
+    }, [absenceTypes, existingAbsence]);
+
+    // Effect for non-hourly time types
+    useEffect(() => {
+        if (startDayTimeType === 'Hourly') return;
+
+        setNewAbsence(prev => {
+            const newFrom = new Date(prev.From);
+            const newTo = new Date(prev.To);
+
+            switch (startDayTimeType) {
+                case 'FullDay':
+                    newFrom.setHours(0, 0, 0, 0);
+                    newTo.setHours(23, 59, 59, 999);
+                    break;
+                case 'HalfDayAM':
+                    newFrom.setHours(0, 0, 0, 0);
+                    newTo.setHours(12, 0, 0, 0);
+                    break;
+                case 'HalfDayPM':
+                    newFrom.setHours(12, 0, 0, 0);
+                    newTo.setHours(23, 59, 59, 999);
+                    break;
+            }
+            return { ...prev, From: newFrom, To: newTo };
+        });
+    }, [startDayTimeType]);
+
+    // Effect for hourly time type
+    useEffect(() => {
+        if (startDayTimeType !== 'Hourly') {
+            setErrors(prev => ({ ...prev, to: undefined }));
+            return;
+        }
+
+        const workHours = mainCommitment?.WorkHoursPerDay || 8;
+
+        const d1 = new Date(0, 0, 0, fromTime.getHours(), fromTime.getMinutes());
+        const d2 = new Date(0, 0, 0, toTime.getHours(), toTime.getMinutes());
+        const diff = (d2.getTime() - d1.getTime()) / (1000 * 60 * 60);
+
+        let validationError: string | undefined = undefined;
+        if (diff < 0) {
+            validationError = `'Do' čas nesmí být před 'Od' časem.`;
+            setStartDayHours(0);
+        } else if (diff > workHours) {
+            validationError = `Počet hodin nesmí přesáhnout délku úvazku (${workHours}h).`;
+            setStartDayHours(diff);
+        } else {
+            setStartDayHours(diff);
+        }
+
+        setErrors(prev => ({ ...prev, to: validationError }));
+
+        setNewAbsence(prev => {
+            const newFrom = new Date(prev.From);
+            newFrom.setHours(fromTime.getHours(), fromTime.getMinutes(), 0, 0);
+
+            const newTo = new Date(prev.To);
+            newTo.setHours(toTime.getHours(), toTime.getMinutes(), 0, 0);
+
+            return { ...prev, From: newFrom, To: newTo };
+        });
+    }, [startDayTimeType, fromTime, toTime, mainCommitment]);
+
     useEffect(() => {
         const validateAndCalculatePTO = async (): Promise<void> => {
-            if (absenceTypes.some(type => type.TakesPTO && type.Id === newAbsence.AbsenceType.Id)) {
-                const ptoHours = await calculatePTOHoursByMonth(newAbsence.From, newAbsence.To);
+            const currentType = absenceTypes.find(type => type.Id === newAbsence.AbsenceType.Id);
+            const ptoHours = await calculatePTOHoursByMonth(newAbsence.From, newAbsence.To);
+
+            let totalPTOHours = 0;
+            ptoHours.forEach(hours => { totalPTOHours += hours });
+            setTotalHoursRequested(totalPTOHours);
+            const totalDaysUsed = Math.round((totalPTOHours / (mainCommitment?.WorkHoursPerDay || 8)) * 10) / 10;
+            setTotalDaysRequested(totalDaysUsed);
+
+
+            if (currentType?.TakesPTO) {
+
+
                 const hoursLeft = await PTOHoursLeft(sp, user.Id);
-                let totalPTOHours = 0;
-                ptoHours.forEach(hours => {totalPTOHours += hours});
+
                 if (totalPTOHours > hoursLeft) {
-                    setErrors(prev => ({ ...prev, pto: `You do not have enough PTO. You are requesting ${ptoHours} hours, but you only have ${hoursLeft} hours left.` }));
+                    setErrors(prev => ({ ...prev, pto: `Nemáte dostatek hodin. Žádáte o ${totalPTOHours} hodin dovolené, ale máte pouze ${hoursLeft} hodin.` }));
                 } else {
                     setErrors(prev => ({ ...prev, pto: undefined }));
                 }
@@ -385,106 +626,105 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
         validateAndCalculatePTO().catch(console.error);
 
-    }, [newAbsence, startDayTimeType, endDayTimeType, startDayHours, endDayHours, absenceTypes]);
-    
+    }, [newAbsence, startDayTimeType, startDayHours, absenceTypes]);
+
+    useEffect(() => {
+        fetchAllUsers(sp).then(users => {
+            setAllUsers(users);
+        }).catch(console.error);
+    }, [user, delegatedAbsence]);
+
     return (
         <div className={styles.requestAbsence}>
-            <h3 className={styles.title}>Request Absence</h3>
+            <h3 className={styles.title}>Žádost o nepřítomnost</h3>
             <div className={styles.formContainer}>
-                <TextField label='Name' value={`${user.FirstName} ${user.LastName}`} disabled />
+                {delegatedAbsence &&
+                    <Dropdown label='Jméno'
+                        options={allUsers.map(contact => ({ key: contact.Id, text: `${contact.FirstName} ${contact.LastName}` }))}
+                        onChange={onUserChange}
+                        errorMessage={errors.user}
+                        defaultSelectedKey={newAbsence.Employee.Id}
+                    /> ||
+                    <TextField label='Jméno' value={`${user.FirstName} ${user.LastName}`} disabled />
+                }
                 <Dropdown
-                    label='Absence Type'
+                    label='Typ absence'
                     placeholder="Select an absence type..."
-                    options={absenceTypeOptions}
+                    options={absenceTypes.map(choice => ({
+                        key: choice.Id,
+                        text: choice.Title
+                    }))}
                     errorMessage={errors.absenceType}
                     onChange={onAbsenceTypeChange}
+                    selectedKey={newAbsence.AbsenceType?.Id || (absenceTypes.length > 0 ? absenceTypes[0].Id : undefined)}
                 />
                 <div className={styles.dateRow}>
                     <DatePicker
                         className={styles.datePicker}
                         firstDayOfWeek={DayOfWeek.Monday}
-                        ariaLabel='Select a start date'
-                        label='From'
+                        ariaLabel='Zvolte začátek dovolené'
+                        label='Od'
                         strings={CzechDatePickerStrings}
                         value={newAbsence.From}
                         onSelectDate={onFromChange}
-                        minDate={new Date()}/>
+                        formatDate={onFormatDate}
+                        parseDateFromString={onParseDateFromString}
+                    />
                     <ChoiceGroup selectedKey={startDayTimeType} options={timeTypeOptions} onChange={onStartDayTimeTypeChange} />
-                    {startDayTimeType === 'Hourly' && ( // Replaced TimePicker with TextField for hours
-                        <TextField
-                            label="Hours"
-                            type="number"
-                            value={startDayHours.toString()}
-                            onChange={(ev, val) => setStartDayHours(Number(val) || 0)}
-                            min={1}
-                        />
-                    )}
                     {errors.from && <p className={styles.errorMessage}>{errors.from}</p>}
                 </div>
                 <div className={styles.dateRow}>
-                    <DatePicker
+                    {startDayTimeType === 'FullDay' && <DatePicker
                         className={styles.datePicker}
                         firstDayOfWeek={DayOfWeek.Monday}
-                        ariaLabel='Select an end date'
-                        label='To'
+                        ariaLabel='Zvolte konec dovolené'
+                        label='Do'
                         strings={CzechDatePickerStrings}
                         value={newAbsence.To}
                         onSelectDate={onToChange}
-                        minDate={newAbsence.From}/>
-                    <ChoiceGroup selectedKey={endDayTimeType} options={timeTypeOptions} onChange={onEndDayTimeTypeChange} />
-                    {endDayTimeType === 'Hourly' && ( // Replaced TimePicker with TextField for hours
-                        <TextField
-                            label="Hours"
-                            type="number"
-                            value={endDayHours.toString()}
-                            onChange={(ev, val) => setEndDayHours(Number(val) || 0)}
-                            min={1}
-                        />
+                        formatDate={onFormatDate}
+                        parseDateFromString={onParseDateFromString}
+                    />}
+                    {startDayTimeType === 'Hourly' && (
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <TimePicker
+                                label="Od"
+                                value={fromTime}
+                                increments={60}
+                                allowFreeform={false}
+                                dateAnchor={new Date(2020, 0, 1, 0, 0, 0, 0)}
+                                onChange={(e, date) => onTimeChange(date, 'from')}
+                            />
+                            <TimePicker
+                                label="Do"
+                                value={toTime}
+                                increments={60}
+                                allowFreeform={false}
+                                dateAnchor={new Date(2020, 0, 1, 0, 0, 0, 0)}
+                                onChange={(e, date) => onTimeChange(date, 'to')}
+                            />
+                        </div>
                     )}
                     {errors.to && <p className={styles.errorMessage}>{errors.to}</p>}
                 </div>
-                    
-                <TextField label='Note for CoHe' multiline rows={3} onChange={onNoteChange} />
-                <TextField label='Note for leader' multiline rows={3} onChange={onNoteForLeaderChange} />
+                <TextField label='Poznámka pro CoHe' multiline rows={3} onChange={onNoteChange} />
+                <TextField label='Poznámka pro nadřízeného' multiline rows={3} onChange={onNoteForLeaderChange} />
             </div>
             {errors.pto && <p className={styles.errorMessage}>{errors.pto}</p>}
-            <div className={styles.actionsContainer}>
+            <p>{mainCommitment?.MainCommitment}</p>
+            <div className={styles.actionsContainer} style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ marginRight: 'auto', fontWeight: 'bold' }}>
+                    Celkem hodin: {totalHoursRequested} ({totalDaysRequested} dní)
+                </div>
                 <PrimaryButton
-                    text='Submit'
-                    style={{ marginRight: '8px' }} 
+                    text={isSubmitting ? 'Odesílání...' : 'Odeslat'}
+                    style={{ marginRight: '8px' }}
+                    disabled={isSubmitting}
                     onClick={handleSaveButton} />
-                <DefaultButton text='Cancel' onClick={handleCloseButton} />
+                <DefaultButton text='Zrušit' onClick={handleCloseButton} />
             </div>
-            {/* TODO: Use TimeType field to get the amount of time spent on the time off
-                     FullDay = 8hrs, 
-                     halfDayAM is 4 hours in the morning (or based on the employment time),
-                     halfDayPM is 4 hours in the afternoon, 
-                     hourly is gonna have a time picker
-                     
-                     time off goes from one year to the next for up to 3 years, keep it stored somewhere (make it customisable)
-                        add it to the base amount each year
-                        the priority for decreasing available time off comes from the oldest available PTO
-
-                        if someone starts later in the year or comes in later the available PTO is reduced!!! half a year is 12.5 days etc
-                        
-                        DONT forget about weekends, and holidays + Easter(PITA)
-                        
-                        include sick days and homeoffice doesnt take away from time off
-
-                        Users can have different types of employement 
-                            for example only 6 hours, in that case half day would be 3 hours instead of 4
-                            calculate it based on emplyement type
-
-                            sometimes emplyment can change mid year so store it in a way that allows for that
-                            Add this in the Uvazky sharepoint list
-                                If a user has multiple Employments for the same company the amount of work per day is added together
-
-
-                    
-                        Decide where leaders decide PTO time themselves and where its automatically calculated
-                    */}
         </div>
-  );
+    );
 
 }
 

@@ -2,20 +2,24 @@ import { SPFI } from '@pnp/sp';
 import * as React from 'react';
 import { IContact } from '../../../models/IContact';
 import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, SelectionMode } from '@fluentui/react';
+import styles from './ApproveAbsence.module.scss';
 import { useEffect, useState } from 'react';
 import { IAbsence } from '../AbsenceInterfaces';
 import { formatDate } from '../../../../../utils/dateUtils';
 import { DefaultButton, PrimaryButton } from '@fluentui/react/lib/Button';
-import { fetchAbsencesAwaitingApproval } from '../../../../../utils/userUtils';
+import { fetchAbsencesAwaitingApproval, deleteAbsence, fetchUserById } from '../../../../../utils/userUtils';
+import { GraphFI } from '@pnp/graph';
+import { sendAbsenceResponseEmail } from '../../../../../utils/emailUtils';
 
 interface IApproveAbsenceProps{
     sp: SPFI;
     user: IContact;
+    graph: GraphFI;
     onUpdate: () => void;
 }
 
 const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
-    const { sp, user, onUpdate } = props;
+    const { sp, user, graph, onUpdate } = props;
     const [ absencesToApprove, setAbsencesToApprove ] = useState<IAbsence[]>([]);
     const [ contacts, setContacts ] = useState<IContact[]>([]);
     const [ isLoaded, setIsLoaded ] = useState<boolean>(false); 
@@ -47,10 +51,21 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
 
     const handleApprove = async (absence: IAbsence): Promise<void> => {
         try {
-            const absenceId: number = absence.Id;
-            await sp.web.lists.getByTitle('Absence').items.getById(absenceId).update({
-                Approved: true
-            });
+
+            const requestee = await fetchUserById(sp, absence.Employee.Id || absence.Employee.ID || 0);
+
+            if (absence.Delete) {
+                await sendAbsenceResponseEmail(graph, requestee, absence, "DeletionConfirmed");
+                
+                await deleteAbsence(sp, absence.Id);
+            } else {
+                await sendAbsenceResponseEmail(graph, requestee, absence, "Approved");
+
+                const absenceId: number = absence.Id;
+                await sp.web.lists.getByTitle('Absence').items.getById(absenceId).update({
+                    Approved: true
+                });
+            }
             // Refresh the list after approval
             const fetchedAbsences = await fetchAbsencesAwaitingApproval(sp, user);
             setAbsencesToApprove(fetchedAbsences);
@@ -60,26 +75,53 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
         }
     };
 
-    const handleReject = async (absenceId: number): Promise<void> => {
+    const handleReject = async (absence: IAbsence): Promise<void> => {
         try {
-            await sp.web.lists.getByTitle('Absence').items.getById(absenceId).delete();
+            const requestee = await fetchUserById(sp, absence.Employee.Id);
+
+            const absenceId = absence.Id;
+            if (absence.Delete) {
+                await sendAbsenceResponseEmail(graph, requestee, absence, "DeletionRejected");
+
+                await sp.web.lists.getByTitle('Absence').items.getById(absenceId).update({
+                    Delete: false
+                });
+            } else {
+                await sendAbsenceResponseEmail(graph, requestee, absence, "Rejected");
+
+                await sp.web.lists.getByTitle('Absence').items.getById(absenceId).update({
+                    Approved: false,
+                    Rejected: true,
+                    Delete: false
+                });
+            }
             // Refresh the list after rejection
-            setAbsencesToApprove(absencesToApprove.filter(a => a.Id !== absenceId));
+            const fetchedAbsences = await fetchAbsencesAwaitingApproval(sp, user);
+            setAbsencesToApprove(fetchedAbsences);
+            await fetchAbsenceContacts(fetchedAbsences);
         } catch (error) {
             console.error("Error rejecting absence: ", error);
         }
     };
 
+    const hasDeleteRequest = absencesToApprove.some(item => item.Delete);
+
     const columns: IColumn[] = [
             {
                 key: 'actions',
-                name: 'Actions',
-                minWidth: 180,
+                name: 'Akce',
+                minWidth: hasDeleteRequest ? 270 : 220,
+                maxWidth: hasDeleteRequest ? 350 : 270, // Optional: prevents it from getting too huge on ultrawide monitors
                 isResizable: false,
                 onRender: (item: IAbsence) => (
                     <div>
-                        <PrimaryButton text="Approve" onClick={() => handleApprove(item)} styles={{ root: { marginRight: 8 } }} />
-                        <DefaultButton text="Reject" onClick={() => handleReject(item.Id)} />
+                        <PrimaryButton 
+                            text={item.Delete ? "Smazat" : "Schválit"} 
+                            onClick={() => handleApprove(item)} 
+                            className={item.Delete ? styles.deleteButton : undefined}
+                            styles={{ root: { marginRight: 8 } }} 
+                        />
+                        <DefaultButton text={item.Delete ? "Odmítnout Smazání" : "Odmítnout"} onClick={() => handleReject(item)} />
                     </div>
                 ),
             },
@@ -98,12 +140,12 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
                 onRender: (item: IAbsence) => <span>{item.AbsenceType.Title}</span>,
             },
             {
-                key: 'from', name: 'Od', fieldName: 'From', minWidth: 65, isResizable: false,
+                key: 'from', name: 'Od', fieldName: 'From', minWidth: 100, isResizable: false,
                 // 2. Use onRender to format the date cell
                 onRender: (item: IAbsence) => <span>{formatDate(item.From.toString())}</span>,
             },
             {
-                key: 'to', name: 'Do', fieldName: 'To', minWidth: 65, isResizable: false,
+                key: 'to', name: 'Do', fieldName: 'To', minWidth: 100, isResizable: false,
                 onRender: (item: IAbsence) => <span>{formatDate(item.To.toString())}</span>,
             },
             {

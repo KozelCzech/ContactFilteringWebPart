@@ -2,13 +2,19 @@ import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import styles from './ContactFiltering.module.scss';
 import type { IContactFilteringProps } from './IContactFilteringProps';
-import { TextField } from '@fluentui/react/lib/TextField';
-import { PrimaryButton } from '@fluentui/react/lib/Button';
-import { Dropdown, IDropdownOption, Image, ImageFit } from '@fluentui/react';
-import { Spinner } from '@fluentui/react/lib/Spinner';
+import {
+  Dropdown,
+  IDropdownOption,
+  TextField,
+  PrimaryButton,
+  Image,
+  ImageFit,
+  Spinner,
+  PivotItem
+} from '@fluentui/react';
 import { IContact } from '../models/IContact';
 import ContactCard from './ContactCard';
-import TagHolder from './tagFolder/TagHolder';
+//import TagHolder from './tagFolder/TagHolder';
 import Modal from './subComponents/modal/Modal';
 import Paginator from './subComponents/paginator/Paginator';
 import AbsenceList from './absences/AbsenceList/AbsenceList';
@@ -17,9 +23,9 @@ import UserPage from './userPage/UserPage';
 import RequestAbsence from './absences/requestAbsence/RequestAbsence';
 import ApproveAbsence from './absences/approveAbsence/ApproveAbsence';
 import TabsView from './subComponents/tabsView/tabsView';
-import { PivotItem } from '@fluentui/react';
-import { fetchAbsencesAwaitingApproval } from '../../../utils/userUtils';
+import { fetchAbsencesAwaitingApproval, fetchAllDepartments, fetchEmployeeIdsByDepartment } from '../../../utils/userUtils';
 import FinancialStatements from './absences/financialStatements/FinancialStatements';
+import { createNewYearPTO } from '../../../utils/ptoUtils';
 
 
 
@@ -32,15 +38,13 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [nameText, setNameText] = useState<string>("");
   const [phoneNumberText, setPhoneNumberText] = useState<string>("");
   const [emailText, setEmailText] = useState<string>("");
+  const [departmentKey, setDepartmentKey] = useState<string | number>("");
   const [departmentOptions, setDepartmentOptions] = useState<IDropdownOption[]>([]);
 
   const [activeFilter, setActiveFilter] = useState<string>("");
   
-  const [selectedDepartment, setSelectedDepartment] = useState<string | number | undefined>(undefined);
-  const [isLoadingDepartments, setIsLoadingDepartments] = useState<boolean>(false);
-  
   const [selectedContact, setSelectedContact] = useState<IContact | undefined>(undefined);
-  const [isTagCreator, setIsTagCreator] = useState<boolean>(false);
+  //const [isTagCreator, setIsTagCreator] = useState<boolean>(false);
 
   const [pageUrls, setPageUrls] = useState<string[]>([]);
   const [currentPageNumber, setCurrentPageNumber] = useState<number>(0);
@@ -56,8 +60,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   const [ showApproveAbsence, setShowApproveAbsence ] = useState<boolean>(false);
 
-  const [yearlyTrigger, setYearlyTrigger] = useState(() => new Date().getFullYear());
-
   const listName: string = "ContactFilteringTest";
   
   // #region Contacts
@@ -67,9 +69,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     if (nameText.trim() !== "") {
       filterParts.push(`(substringof('${escapedNameText}', FirstName) or substringof('${escapedNameText}', LastName) or substringof('${escapedNameText}', Title))`);
     }
-    if (selectedDepartment && selectedDepartment !== "") {
-      filterParts.push(`(Department eq '${selectedDepartment}')`);
-    }
     const escapedPhoneNumberText = phoneNumberText.replace(/'/g, "''");
     if (phoneNumberText.trim() !== "") {
       filterParts.push(`(substringof('${escapedPhoneNumberText}', PhoneNumber))`);
@@ -78,6 +77,21 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     if (emailText.trim() !== "") {
       filterParts.push(`(substringof('${escapedEmailText}', Email))`);
     }
+
+    if (departmentKey) {
+      const uniqueEmployeeIds = await fetchEmployeeIdsByDepartment(props.sp, departmentKey as number);
+
+      if (uniqueEmployeeIds.length > 0) {
+        const idFilter = uniqueEmployeeIds.map(id => `Id eq ${id}`).join(' or ');
+        filterParts.push(`(${idFilter})`);
+      } else {
+        // If no employees are found for the department, create a filter that returns no results.
+        // Using Id eq -1 is a common way to ensure no items are returned.
+        const idFilter = 'Id eq -1';
+        filterParts.push(`(${idFilter})`);
+      }
+    }
+
     const combinedFilter = filterParts.join(' and ');
     setActiveFilter(combinedFilter)
   }
@@ -85,9 +99,9 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   const createFullQuery = async(): Promise<string> => {
       let itemsQuery = props.sp.web.lists.getByTitle('ContactFilteringTest').items.select(
-        'Id', 'Title', 'FirstName', 'LastName', 'Department', 'Image', 'PhoneNumber', 'Email', 
-        "Tags/Id", "Tags/TagName", "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title"
-      ).expand("Tags", "Leader", "BackupLeader");
+        'Id', 'Title', 'FirstName', 'LastName', 'Image', 'PhoneNumber', 'Email', 
+        "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title"
+      ).expand("Leader", "BackupLeader");
       const filterQuery = activeFilter;
 
       if (filterQuery) {
@@ -110,9 +124,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
             const data = await response.json();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const newItems: IContact[] = (data.d.results as any[]).map(contact => {
-              if (contact.Tags && 'results' in contact.Tags) {
-                return { ...contact, Tags: contact.Tags.results };
-              }
               return contact;
             });
             const nextUrl = data.d.__next;
@@ -158,24 +169,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     }
   };
   
-  
-  const fetchDepartmentChoices = useCallback(async (): Promise<void> => {
-    setIsLoadingDepartments(true);
-    try {
-      const departmentField = await props.sp.web.lists.getByTitle('ContactFilteringTest').fields.getByInternalNameOrTitle('Department')();
-      if (departmentField && departmentField.Choices) {
-        const options: IDropdownOption[] = [{ key: "", text: "All Departments" }, ...departmentField.Choices.map((choice: string) => ({ key: choice, text: choice }))];
-        setDepartmentOptions(options);
-      } else {
-        console.log("Department field not found or no choices available.");
-        setDepartmentOptions([]);
-      }
-    } catch (error) {
-      console.error('Error fetching department choices:', error);
-    } finally {
-      setIsLoadingDepartments(false);
-    }
-  }, [props.sp]);
   // #endregion
 
 
@@ -185,9 +178,9 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
       const result = await props.sp.web.lists.getByTitle("ContactFilteringTest").items
       .select(
-        'Id', 'Title', 'FirstName', 'LastName', 'Department', 'Image', 'PhoneNumber', 'Email', 
-        "Tags/Id", "Tags/TagName", "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title", "TimeOffHours"
-      ).expand("Tags", "Leader", "BackupLeader").filter(`Email eq '${user.Email}'`)();
+        'Id', 'Title', 'FirstName', 'LastName', 'Image', 'PhoneNumber', 'Email', 
+        "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title", "TimeOffHours"
+      ).expand("Leader", "BackupLeader").filter(`Email eq '${user.Email}'`)();
       setCurrentUser(result[0] as IContact);
 
 
@@ -197,16 +190,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     }
   }
   
-
-  const isUserInGroup = useCallback(async (groupName: string): Promise<boolean> => {
-    try {
-      const response = await props.sp.web.currentUser.groups.filter(`LoginName eq '${groupName}'`)();
-      return response.length > 0;
-    } catch (error) {
-      console.error('Error checking group membership:', error);
-      return false;
-    }
-  }, [props.sp]);
 
 
 
@@ -226,9 +209,12 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     setEmailText(newValue || "");
   };
 
-
   const onDepartmentChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
-    setSelectedDepartment(option ? option.key : "");
+    if (option) {
+        setDepartmentKey(option.key);
+    } else {
+        setDepartmentKey("");
+    }
   };
 
 
@@ -236,8 +222,8 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     setNameText("");
     setPhoneNumberText("");
     setEmailText("");
-    setSelectedDepartment("");
-
+    setDepartmentKey("");
+    
     setActiveFilter("");
 
     await getFirstPage();
@@ -254,17 +240,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   };
   
   
-  const handleContactUpdate = (): void => {
-    handleCloseContactModal();
-    const urlToLoad = pageUrls[currentPageNumber];
-    if (urlToLoad) {
-      loadPageByUrl(urlToLoad).catch(error => {
-        console.log("Error loading page: ", error);
-      });
-    }
-  };
-  
-  
     const handleUserPageClick = (): void => {
       setUserModalOpen(true);
     };
@@ -275,9 +250,9 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     }
 
 
-    const handleUserPageUpdate = (): void => {
+    /*const handleUserPageUpdate = (): void => {
       setUserModalOpen(false);
-    }
+    }*/
 
 
   const handleNext = (): void => {
@@ -352,12 +327,17 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     const init = async (): Promise<void> => {
       console.log("Component did mount");
       await getFirstPage();
-      await fetchDepartmentChoices();
-      const tagCreatorStatus = await isUserInGroup("TagCreators");
-      setIsTagCreator(tagCreatorStatus);
+      //const tagCreatorStatus = await isUserInGroup("TagCreators");
+      //setIsTagCreator(tagCreatorStatus);
       setItemsPerPage(10);
 
       fetchUser().catch(error => console.error("Error fetching user email:", error));
+
+      fetchAllDepartments(props.sp).then(departments => {
+        const options: IDropdownOption[] = departments.map(dep => ({ key: dep.UniqueCode, text: `${dep.UniqueCode} - ${dep.Title}`}));
+        options.unshift({ key: "", text: "Všechna oddělení" });
+        setDepartmentOptions(options);
+      }).catch(error => console.error("Error fetching departments:", error));
 
       approveAbsenceRequired().catch(error => console.error("Error fetching user email:", error));
     };
@@ -388,63 +368,49 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
         }
   }, [currentPageNumber]);
 
-  // This effect sets up a long-running check to see if the year has changed.
+  // You only need one useEffect to handle the initialization
   useEffect(() => {
-    // Check for a new year every hour. This is a good balance to ensure it
-    // runs soon after the new year without checking too frequently.
-    const intervalId = setInterval(() => {
-      const newYear = new Date().getFullYear();
-      if (newYear !== yearlyTrigger) {
-        setYearlyTrigger(newYear);
-      }
-    }, 1000 * 60 * 60); // 1 hour in milliseconds
-
-    // Cleanup the interval when the component unmounts to prevent memory leaks.
-    return () => clearInterval(intervalId);
-  }, [yearlyTrigger]);
-
-  // This is your yearly effect. It will run once on component mount,
-  // and then again every time the 'yearlyTrigger' state changes (i.e., on Jan 1st).
-  useEffect(() => {
-    console.log(`Yearly task running for ${yearlyTrigger}`);
-    
-  }, [yearlyTrigger]);
+    if (currentUser) {
+      // This runs once when the component loads or the user is identified
+      createNewYearPTO(props.sp, currentUser.Id).catch(error => {
+        console.error("Error creating new year PTO: ", error);
+      });
+    }
+  }, [currentUser]); // Triggered only when the user is loaded
 
 
   return (
     <div className={styles.contactFiltering}>
       <div className={styles.headerActionsContainer}>
         <div className={styles.headerActions}>
-          <div onClick={handleRequestAbsenceClick}>Request absence</div>
-          {showApproveAbsence && <div onClick={handleApproveAbsenceClick}>Approve absence</div>}
-          <div onClick={handleFinancialStatementsClick}>Financial Statements</div>
+          <div onClick={handleRequestAbsenceClick}>Žádost o nepřítomnost</div>
+          {showApproveAbsence && <div onClick={handleApproveAbsenceClick}>Schválit nepřítomnost</div>}
+          <div onClick={handleFinancialStatementsClick}>Měsíční shrnutí</div>
           <div onClick={handleUserPageClick} className={styles.userAction} >
             {currentUser?.Image && <Image src={fetchUserImage()} className={styles.userImage} imageFit={ImageFit.cover} />}
           </div>
         </div>
       </div>
       <TabsView>
-        <PivotItem headerText='Contact list' itemKey='contacts'>
+        <PivotItem headerText='Contakty' itemKey='contacts'>
           <div className={styles.filtersContainer}>
-            <TextField label="Name:" placeholder="Enter first or last name..." value={nameText} onChange={onNameTextChange} />
+            <TextField label="Jméno:" placeholder="Zadej jméno nebo příjmení..." value={nameText} onChange={onNameTextChange} />
+            <TextField label="Tel. číslo:" placeholder="Zadej tel. číslo..." value={phoneNumberText} onChange={onPhoneNumberTextChange} />
+            <TextField label="Email:" placeholder="Zadej email..." value={emailText} onChange={onEmailTextChange} />
             <Dropdown
-              label="Department:"
-              placeholder="Select a Department"
+              label="Oddělení:"
+              placeholder="Vyberte oddělení"
               options={departmentOptions}
-              selectedKey={selectedDepartment}
-              onChange={onDepartmentChange}
-              disabled={isLoadingDepartments}
-            />
-            <TextField label="Phone number:" placeholder="Enter phone number..." value={phoneNumberText} onChange={onPhoneNumberTextChange} />
-            <TextField label="Email:" placeholder="Enter email..." value={emailText} onChange={onEmailTextChange} />
+              selectedKey={departmentKey}
+              onChange={onDepartmentChange} />
           </div>
           <div className={styles.actionsContainer}>
-            <PrimaryButton text="Apply Filters" onClick={createFilter} style={{ marginRight: '8px' }} />
-            <PrimaryButton text="Clear Filters" onClick={onClearFilterClick} />
+            <PrimaryButton text="Aplikovat filtry" onClick={createFilter} style={{ marginRight: '8px' }} />
+            <PrimaryButton text="Vymazat filtry" onClick={onClearFilterClick} />
           </div>
           <div className={styles.resultsContainer}>
             {isLoading ? (
-              <Spinner label="I am definitely loading..." />
+              <Spinner label="Načítám kontakty..." />
             ) : (
               <Paginator
                 hasNext={hasNext}
@@ -455,38 +421,46 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
               >
                 <div className={styles.cardContainer}>
                   {contacts.map((contact: IContact) => (
-                    <ContactCard key={contact.Id} contact={contact} webAbsoluteUrl={props.webAbsoluteUrl} onClick={() => handleContactCardClick(contact)} />
+                    <ContactCard key={contact.Id} sp={props.sp} contact={contact} webAbsoluteUrl={props.webAbsoluteUrl} onClick={() => handleContactCardClick(contact)} />
                   ))}
                 </div>
               </Paginator>
             )}
           </div>
         </ PivotItem>
-        <PivotItem headerText='Absences' itemKey='absences'>
+        <PivotItem headerText='Absence' itemKey='absences'>
           <AbsenceList sp={props.sp} requestModalOpen={requestAbsenceModalOpen} approveModalOpen={approveAbsenceModalOpen}/>
         </PivotItem>
-        {isTagCreator && <PivotItem headerText='Tags' itemKey='tags'>
+        { /*isTagCreator && <PivotItem headerText='Tags' itemKey='tags'>
           <TagHolder sp={props.sp} webUrl={props.webAbsoluteUrl} />
-        </PivotItem>}
+        </PivotItem> */}
       </TabsView>
-      <Modal isOpen={userModalOpen} onClose={handleCloseUserPageModal}>
+      <Modal isOpen={userModalOpen} onClose={handleCloseUserPageModal} width='medium'>
         {currentUser && <UserPage sp={props.sp} 
           contact={currentUser} 
           webAbsoluteUrl={props.webAbsoluteUrl} 
-          isTagCreator={isTagCreator} onUpdate={handleUserPageUpdate}/>}
+          graph={props.graph}
+          //isTagCreator={isTagCreator}
+          //onUpdate={handleUserPageUpdate}
+          onAbsenceUpdate={approveAbsenceRequired}
+          />}
       </Modal>
-      <Modal isOpen={!!selectedContact} onClose={handleCloseContactModal}>
+      <Modal isOpen={!!selectedContact} onClose={handleCloseContactModal} width='medium'>
         {selectedContact && <ContactPage sp={props.sp} 
           contact={selectedContact} 
           webAbsoluteUrl={props.webAbsoluteUrl} 
-          isTagCreator={isTagCreator} 
-          onUpdate={handleContactUpdate} />}
+          //isTagCreator={isTagCreator} 
+          //onUpdate={handleContactUpdate} 
+          />}
       </Modal>
       <Modal isOpen={requestAbsenceModalOpen} onClose={handleRequestAbsenceUpdate}>
-        {currentUser && <RequestAbsence user={currentUser} sp={props.sp} onUpdate={handleRequestAbsenceUpdate} /> }
+        {currentUser && 
+          <RequestAbsence user={currentUser} sp={props.sp} graph={props.graph}
+            onUpdate={handleRequestAbsenceUpdate}/> 
+        }
       </Modal>
-      <Modal isOpen={approveAbsenceModalOpen} onClose={handleApproveAbsenceUpdate}>
-        {currentUser && <ApproveAbsence sp={props.sp} user={currentUser} onUpdate={handleApproveAbsenceUpdate}/>}
+      <Modal isOpen={approveAbsenceModalOpen} onClose={handleApproveAbsenceUpdate} width='large'>
+        {currentUser && <ApproveAbsence sp={props.sp} user={currentUser} graph={props.graph} onUpdate={handleApproveAbsenceUpdate}/>}
       </ Modal>
       <Modal isOpen={financialStatementsModalOpen} onClose={handleFinancialStatementsUpdate} width='large'>
         <FinancialStatements sp={props.sp} />

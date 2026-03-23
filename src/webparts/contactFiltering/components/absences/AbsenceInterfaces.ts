@@ -6,6 +6,7 @@ export interface IAbsenceType {
     Title: string;
     TakesPTO?: boolean;
     FinancialStatement?: boolean;
+    isAbsent?: boolean;
 }
 
 
@@ -19,6 +20,8 @@ export interface IAbsence {
     Notes: string;
     NoteForLeader: string;
     Approved: boolean;
+    Rejected: boolean;
+    Delete?: boolean;
     Approvee: IContact;
     TimeType: string;
     HoursUsed: number;

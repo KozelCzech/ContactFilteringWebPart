@@ -62,11 +62,11 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
         
         // Base columns that are always present
         const baseColumns: IColumn[] = [
-            { key: 'department', name: 'Department', fieldName: 'department', minWidth: 100, isResizable: true },
-            { key: 'employeeName', name: 'Employee Name', fieldName: 'employeeName', minWidth: 150, isResizable: true },
+            { key: 'department', name: 'Oddělení', fieldName: 'department', minWidth: 100, isResizable: true },
+            { key: 'employeeName', name: 'Jméno', fieldName: 'employeeName', minWidth: 150, isResizable: true },
             { 
                 key: 'from', 
-                name: 'From', 
+                name: 'Od', 
                 fieldName: 'from', 
                 minWidth: 80, 
                 isResizable: true,
@@ -74,13 +74,13 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
             },
             { 
                 key: 'to', 
-                name: 'To', 
+                name: 'Do', 
                 fieldName: 'to', 
                 minWidth: 80, 
                 isResizable: true,
                 onRender: (item: IFinancialStatementItem) => item.to.toLocaleDateString() // Format Date to string
             },
-            { key: 'totalHours', name: 'Total Hours', fieldName: 'totalHours', minWidth: 100, isResizable: true },
+            { key: 'totalHours', name: 'Celkem hodin', fieldName: 'totalHours', minWidth: 100, isResizable: true },
         ];
 
         // Dynamically create columns for absence types where financialStatement is true
@@ -182,11 +182,11 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
         const rowPromises = currentMonthAbsences.map(async (absence) => {
             try {
                 const employee: IContact = await fetchUserById(sp, absence.Employee.Id);
-                const department: IDepartment = await fetchDepartmentByUserId(sp, employee.Id) || { Id: 0, Title: '' , Leader: {Id: 0, Title: ''}, Location: ''};
+                const department: IDepartment = await fetchDepartmentByUserId(sp, employee.Id) || { Id: 0, Title: '' , Leader: {Id: 0, Title: ''}, Location: '', UniqueCode: 0};
 
                 const row: IFinancialStatementItem = {
                     key: absence.Id,
-                    department: department?.Title || "N/A",
+                    department: department?.Title || "Nezadáno",
                     employeeName: `${employee.FirstName || ''} ${employee.LastName || ''}`,
                     from: absence.From,
                     to: absence.To,
@@ -217,8 +217,8 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
         // 3. Set this as the active font for the document.
         doc.setFont('NotoSans');
 
-        const monthName = new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' });
-        const title = `Financial Statements - ${monthName} ${selectedYear}`;
+        const monthName = new Date(selectedYear, selectedMonth).toLocaleString('cs-CZ', { month: 'long' });
+        const title = `Měsíční výkazy - ${monthName} ${selectedYear}`;
 
         doc.text(title, 14, 15);
  
@@ -286,7 +286,7 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
 
 
         
-        doc.save(`FinancialStatements-${monthName}-${selectedYear}.pdf`);
+        doc.save(`MesicniVykazy-${monthName}-${selectedYear}.pdf`);
     };
 
 
@@ -310,14 +310,14 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
             <div className={styles.header}>
                 <div /> {/* Empty div to balance the flex layout */}
                 <div className={styles.monthSelector}>
-                    <IconButton iconProps={leftNavigationIcon} onClick={setPreviousMonth} aria-label="Previous month" title="Previous month" />
-                    <h3>{new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' })} - {selectedYear}</h3>
-                    <IconButton iconProps={rightNavigationIcon} onClick={setNextMonth} disabled={isNextMonthDisabled} aria-label="Next month" title="Next month" />
+                    <IconButton iconProps={leftNavigationIcon} onClick={setPreviousMonth} aria-label="Předchozí měsíc" title="Předchozí měsíc" />
+                    <h3>{new Date(selectedYear, selectedMonth).toLocaleString('cs-CZ', { month: 'long' })} - {selectedYear}</h3>
+                    <IconButton iconProps={rightNavigationIcon} onClick={setNextMonth} disabled={isNextMonthDisabled} aria-label="Příští měsíc" title="Příští měsíc" />
                 </div>
-                <PrimaryButton onClick={handleDownloadPdf} disabled={isLoading || items.length === 0}>Download PDF</PrimaryButton>
+                <PrimaryButton onClick={handleDownloadPdf} disabled={isLoading || items.length === 0}>Stáhnout PDF</PrimaryButton>
             </div>
             {isLoading ? (
-                <Spinner size={SpinnerSize.large} label="Loading financial statements..." />
+                <Spinner size={SpinnerSize.large} label="Načítám měsíční výkazy..." />
             ) : (
                 <DetailsList
                     items={items}
