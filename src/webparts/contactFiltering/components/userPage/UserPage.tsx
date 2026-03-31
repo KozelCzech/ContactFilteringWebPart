@@ -7,7 +7,7 @@ import { IContact } from '../../models/IContact';
 //import { ITag } from '../tagFolder/TagHolder';
 import { useEffect, useState } from 'react';
 import { SPFI } from '@pnp/sp';
-import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, SelectionMode, Icon } from '@fluentui/react';
+import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, SelectionMode, Icon, Toggle } from '@fluentui/react';
 //import { getContrastColor } from '../../../../utils/colorUtils';
 import { CheckmarkFilled, DismissFilled, ClockFilled } from '@fluentui/react-icons';
 import { IAbsence } from '../absences/AbsenceInterfaces';
@@ -42,6 +42,7 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
     const [ commitment, setCommitment ] = useState<ICommitment | undefined>(undefined);
     const [ absenceToEdit, setAbsenceToEdit ] = useState<IAbsence | undefined>(undefined);
     const [ absenceToDeleteId, setAbsenceToDeleteId ] = useState<number | undefined>(undefined);
+    const [ showPastAbsences, setShowPastAbsences ] = useState<boolean>(false);
 
     const listName = "ContactFilteringTest";
     const attachmentId = contact.Id;
@@ -155,6 +156,11 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
 
     
 
+    const currentYear = new Date().getFullYear();
+    const filteredAbsences = showPastAbsences 
+        ? absences 
+        : absences.filter(a => new Date(a.To).getFullYear() >= currentYear);
+
     return (
         <div className={styles.contactPage}>
             <div className={styles.header}>
@@ -194,8 +200,16 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
                 </div>
             </div>
             <div className={styles.content}>
+                            <div style={{ marginBottom: '10px' }}>
+                                <Toggle 
+                                    label="Zobrazit minulé roky" 
+                                    inlineLabel 
+                                    checked={showPastAbsences} 
+                                    onChange={(_, checked) => setShowPastAbsences(!!checked)} 
+                                />
+                            </div>
                             <DetailsList
-                                items={absences}
+                                items={filteredAbsences}
                                 columns={columns}
                                 setKey="set"
                                 layoutMode={DetailsListLayoutMode.justified} // 2. Change to fixedColumns

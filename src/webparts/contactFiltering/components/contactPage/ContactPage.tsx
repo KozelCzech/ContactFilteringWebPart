@@ -7,7 +7,7 @@ import { IContact } from '../../models/IContact';
 //import { ITag } from '../tagFolder/TagHolder';
 import { useEffect, useState } from 'react';
 import { SPFI } from '@pnp/sp';
-import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, SelectionMode, Icon } from '@fluentui/react';
+import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, SelectionMode, Icon, Toggle } from '@fluentui/react';
 //import { getContrastColor } from '../../../../utils/colorUtils';
 import { CheckmarkFilled, DismissFilled } from '@fluentui/react-icons';
 import { IAbsence } from '../absences/AbsenceInterfaces';
@@ -27,6 +27,7 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
 
     const [ absences, setAbsences ] = useState<IAbsence[]>([]);
     const [ position, setPosition ] = useState<IPosition | undefined>(undefined);
+    const [ showPastAbsences, setShowPastAbsences ] = useState<boolean>(false);
 
 
 
@@ -89,7 +90,10 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
         },
     ];
 
-    
+    const currentYear = new Date().getFullYear();
+    const filteredAbsences = showPastAbsences 
+        ? absences 
+        : absences.filter(a => new Date(a.To).getFullYear() >= currentYear);
 
     return (
         <div className={styles.contactPage}>
@@ -110,8 +114,16 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                 </div>
             </div>
             <div className={styles.content}>
+                            <div style={{ marginBottom: '10px' }}>
+                                <Toggle 
+                                    label="Zobrazit minulé roky" 
+                                    inlineLabel 
+                                    checked={showPastAbsences} 
+                                    onChange={(_, checked) => setShowPastAbsences(!!checked)} 
+                                />
+                            </div>
                             <DetailsList
-                                items={absences}
+                                items={filteredAbsences}
                                 columns={columns}
                                 setKey="set"
                                 layoutMode={DetailsListLayoutMode.justified} // 2. Change to fixedColumns

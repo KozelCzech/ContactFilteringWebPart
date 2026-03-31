@@ -1,7 +1,7 @@
 import * as React from 'react';
 import styles from './RequestAbsence.module.scss';
 import { IContact } from '../../../models/IContact';
-import { DatePicker, DayOfWeek, DefaultButton, Dropdown, IDropdownOption, PrimaryButton, TextField, IChoiceGroupOption, ChoiceGroup, TimePicker } from '@fluentui/react';
+import { DatePicker, DayOfWeek, DefaultButton, Dropdown, IDropdownOption, PrimaryButton, TextField, IChoiceGroupOption, ChoiceGroup, TimePicker, Spinner, SpinnerSize } from '@fluentui/react';
 import { CzechDatePickerStrings } from '../../../localization/cs-CZ'
 import { IAbsence, IAbsenceType } from '../AbsenceInterfaces';
 import { useEffect, useState } from 'react';
@@ -35,8 +35,12 @@ interface IAbsenceValidationErrors {
 
 
 
-
-type TimeSelectionType = 'FullDay' | 'HalfDayAM' | 'HalfDayPM' | 'Hourly';
+export enum TimeSelectionType {
+    FullDay = 'FullDay',
+    HalfDayAM = 'HalfDayAM',
+    HalfDayPM = 'HalfDayPM',
+    Hourly = 'Hourly'
+}
 
 
 const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
@@ -79,7 +83,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     const [errors, setErrors] = useState<IAbsenceValidationErrors>({});
     const [absenceTypes, setAbsenceTypes] = useState<IAbsenceType[]>([]);
 
-    const [startDayTimeType, setStartDayTimeType] = useState<TimeSelectionType>('FullDay');
+    const [startDayTimeType, setStartDayTimeType] = useState<TimeSelectionType>(TimeSelectionType.FullDay);
 
     const [startDayHours, setStartDayHours] = useState<number>(8);
     const [fromTime, setFromTime] = useState<Date>(() => {
@@ -97,13 +101,14 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     const [allUsers, setAllUsers] = useState<IContact[]>([]);
     const [mainCommitment, setMainCommitment] = useState<ICommitment | undefined>(undefined);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
 
 
     const timeTypeOptions: IChoiceGroupOption[] = [
-        { key: 'FullDay', text: 'Celý den' },
-        { key: 'HalfDayAM', text: 'Dopoledne (AM)' },
-        { key: 'HalfDayPM', text: 'Odpoledne (PM)' },
-        { key: 'Hourly', text: 'Hodinový' },
+        { key: TimeSelectionType.FullDay, text: 'Celý den' },
+        { key: TimeSelectionType.HalfDayAM, text: 'Dopoledne (AM)' },
+        { key: TimeSelectionType.HalfDayPM, text: 'Odpoledne (PM)' },
+        { key: TimeSelectionType.Hourly, text: 'Hodinový' },
     ];
 
     const onStartDayTimeTypeChange = (ev?: React.FormEvent<HTMLElement | HTMLInputElement>, option?: IChoiceGroupOption): void => {
@@ -301,7 +306,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                 const isSingleDayRequest = from.toDateString() === to.toDateString();
 
                 if (isSingleDayRequest || isStartDay) {
-                    hoursForDay = startDayTimeType === 'FullDay' ? workDayHours : (startDayTimeType === 'Hourly' ? startDayHours : workDayHours / 2);
+                    hoursForDay = startDayTimeType === TimeSelectionType.FullDay ? workDayHours : (startDayTimeType === TimeSelectionType.Hourly ? startDayHours : workDayHours / 2);
                 } else { // Full day in between
                     hoursForDay = workDayHours;
                 }
@@ -351,9 +356,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             // The PTO calculation is now done in useEffect, we just need to re-verify
             // in case something changed. The result should be cached and fast.
             let ptoHours = [0, 0];
-            const absenceTypesLocal = await fetchAbsenceTypes(sp);
-
-            const currentType = absenceTypesLocal.find(type => type.Id === newAbsence.AbsenceType.Id);
+            const currentType = absenceTypes.find(type => type.Id === newAbsence.AbsenceType.Id);
 
             if (currentType?.TakesPTO) {
                 ptoHours = await calculatePTOHoursByMonth(newAbsence.From, newAbsence.To);
@@ -402,16 +405,16 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             newToDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
 
             switch (startDayTimeType) {
-                case 'FullDay':
+                case TimeSelectionType.FullDay:
                     newToDate.setHours(23, 59, 59, 999);
                     break;
-                case 'HalfDayAM':
+                case TimeSelectionType.HalfDayAM:
                     newToDate.setHours(12, 0, 0, 0); // Ends at noon
                     break;
-                case 'HalfDayPM':
+                case TimeSelectionType.HalfDayPM:
                     newToDate.setHours(23, 59, 59, 999); // Assumes PM is afternoon until end of day
                     break;
-                case 'Hourly':
+                case TimeSelectionType.Hourly:
                     //Handled in OnHourChange
                     break;
             }
@@ -433,16 +436,16 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             newFromDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
 
             switch (startDayTimeType) {
-                case 'FullDay':
+                case TimeSelectionType.FullDay:
                     newFromDate.setHours(0, 0, 0, 0);
                     break;
-                case 'HalfDayAM':
+                case TimeSelectionType.HalfDayAM:
                     newFromDate.setHours(0, 0, 0, 0); // Starts at beginning of day
                     break;
-                case 'HalfDayPM':
+                case TimeSelectionType.HalfDayPM:
                     newFromDate.setHours(12, 0, 0, 0); // Starts at noon
                     break;
-                case 'Hourly': {
+                case TimeSelectionType.Hourly: {
                     const newToDate = new Date(newAbsence.To);
                     newToDate.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
                     setNewAbsence(prev => ({ ...prev, To: newToDate }));
@@ -484,31 +487,28 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
     };
 
     useEffect(() => {
-        if (sp) {
+        if (!sp) return;
 
-            fetchAbsenceTypes(sp)
-                .then(types => {
-                    setAbsenceTypes(types);
-                })
-                .catch(error => {
-                    console.error("Error fetching absence types: ", error);
-                    setErrors(prev => ({ ...prev, absenceType: "Could not load absence types." }));
-                });
-
-            isUserInGroup(props.sp, "delegatedAbsences").then(result => {
-                setDelegatedAbsence(result);
-            }).catch(error => console.error("Error fetching user email:", error));
-        }
-    }, [sp]);
-
-
-    useEffect(() => {
-        getMainCommitment(user.Id).then(commitment => {
-            if (commitment) {
-                setMainCommitment(commitment);
-            }
-        }).catch(console.error);
-    }, [sp, user])
+        setIsLoading(true);
+        Promise.all([
+            fetchAbsenceTypes(sp),
+            isUserInGroup(props.sp, "delegatedAbsences"),
+            getMainCommitment(user.Id),
+            fetchAllUsers(sp)
+        ])
+            .then(([types, isDelegated, commitment, users]) => {
+                setAbsenceTypes(types);
+                setDelegatedAbsence(isDelegated);
+                if (commitment) setMainCommitment(commitment);
+                setAllUsers(users);
+                setIsLoading(false);
+            })
+            .catch(error => {
+                console.error("Error loading initial data: ", error);
+                setErrors(prev => ({ ...prev, absenceType: "Could not load initial data." }));
+                setIsLoading(false);
+            });
+    }, [sp, user]);
 
 
     useEffect(() => {
@@ -536,22 +536,22 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
     // Effect for non-hourly time types
     useEffect(() => {
-        if (startDayTimeType === 'Hourly') return;
+        if (startDayTimeType === TimeSelectionType.Hourly) return;
 
         setNewAbsence(prev => {
             const newFrom = new Date(prev.From);
             const newTo = new Date(prev.To);
 
             switch (startDayTimeType) {
-                case 'FullDay':
+                case TimeSelectionType.FullDay:
                     newFrom.setHours(0, 0, 0, 0);
                     newTo.setHours(23, 59, 59, 999);
                     break;
-                case 'HalfDayAM':
+                case TimeSelectionType.HalfDayAM:
                     newFrom.setHours(0, 0, 0, 0);
                     newTo.setHours(12, 0, 0, 0);
                     break;
-                case 'HalfDayPM':
+                case TimeSelectionType.HalfDayPM:
                     newFrom.setHours(12, 0, 0, 0);
                     newTo.setHours(23, 59, 59, 999);
                     break;
@@ -562,7 +562,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
     // Effect for hourly time type
     useEffect(() => {
-        if (startDayTimeType !== 'Hourly') {
+        if (startDayTimeType !== TimeSelectionType.Hourly) {
             setErrors(prev => ({ ...prev, to: undefined }));
             return;
         }
@@ -628,92 +628,108 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
     }, [newAbsence, startDayTimeType, startDayHours, absenceTypes]);
 
-    useEffect(() => {
-        fetchAllUsers(sp).then(users => {
-            setAllUsers(users);
-        }).catch(console.error);
-    }, [user, delegatedAbsence]);
+
+
+    const renderUserAndTypeSelector = (): JSX.Element => (
+        <>
+            {delegatedAbsence &&
+                <Dropdown label='Jméno'
+                    options={allUsers.map(contact => ({ key: contact.Id, text: `${contact.FirstName} ${contact.LastName}` }))}
+                    onChange={onUserChange}
+                    errorMessage={errors.user}
+                    defaultSelectedKey={newAbsence.Employee.Id}
+                /> ||
+                <TextField label='Jméno' value={`${user.FirstName} ${user.LastName}`} disabled />
+            }
+            <Dropdown
+                label='Typ absence'
+                placeholder="Select an absence type..."
+                options={absenceTypes.map(choice => ({
+                    key: choice.Id,
+                    text: choice.Title
+                }))}
+                errorMessage={errors.absenceType}
+                onChange={onAbsenceTypeChange}
+                selectedKey={newAbsence.AbsenceType?.Id || (absenceTypes.length > 0 ? absenceTypes[0].Id : undefined)}
+            />
+        </>
+    );
+
+    const renderDateRangeSelector = (): JSX.Element => (
+        <>
+            <div className={styles.dateRow}>
+                <DatePicker
+                    className={styles.datePicker}
+                    firstDayOfWeek={DayOfWeek.Monday}
+                    ariaLabel='Zvolte začátek dovolené'
+                    label='Od'
+                    strings={CzechDatePickerStrings}
+                    value={newAbsence.From}
+                    onSelectDate={onFromChange}
+                    formatDate={onFormatDate}
+                    parseDateFromString={onParseDateFromString}
+                />
+                <ChoiceGroup selectedKey={startDayTimeType} options={timeTypeOptions} onChange={onStartDayTimeTypeChange} />
+                {errors.from && <p className={styles.errorMessage}>{errors.from}</p>}
+            </div>
+            <div className={styles.dateRow}>
+                {startDayTimeType === TimeSelectionType.FullDay && <DatePicker
+                    className={styles.datePicker}
+                    firstDayOfWeek={DayOfWeek.Monday}
+                    ariaLabel='Zvolte konec dovolené'
+                    label='Do'
+                    strings={CzechDatePickerStrings}
+                    value={newAbsence.To}
+                    onSelectDate={onToChange}
+                    formatDate={onFormatDate}
+                    parseDateFromString={onParseDateFromString}
+                />}
+                {startDayTimeType === TimeSelectionType.Hourly && (
+                    <div className={styles.timePickerContainer}>
+                        <TimePicker
+                            label="Od"
+                            value={fromTime}
+                            increments={60}
+                            allowFreeform={false}
+                            dateAnchor={new Date(2020, 0, 1, 0, 0, 0, 0)}
+                            onChange={(e, date) => onTimeChange(date, 'from')}
+                        />
+                        <TimePicker
+                            label="Do"
+                            value={toTime}
+                            increments={60}
+                            allowFreeform={false}
+                            dateAnchor={new Date(2020, 0, 1, 0, 0, 0, 0)}
+                            onChange={(e, date) => onTimeChange(date, 'to')}
+                        />
+                    </div>
+                )}
+                {errors.to && <p className={styles.errorMessage}>{errors.to}</p>}
+            </div>
+        </>
+    );
+
+    if (isLoading) {
+        return (
+            <div className={styles.requestAbsence} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
+                <Spinner size={SpinnerSize.large} label="Načítání..." />
+            </div>
+        );
+    }
 
     return (
         <div className={styles.requestAbsence}>
             <h3 className={styles.title}>Žádost o nepřítomnost</h3>
             <div className={styles.formContainer}>
-                {delegatedAbsence &&
-                    <Dropdown label='Jméno'
-                        options={allUsers.map(contact => ({ key: contact.Id, text: `${contact.FirstName} ${contact.LastName}` }))}
-                        onChange={onUserChange}
-                        errorMessage={errors.user}
-                        defaultSelectedKey={newAbsence.Employee.Id}
-                    /> ||
-                    <TextField label='Jméno' value={`${user.FirstName} ${user.LastName}`} disabled />
-                }
-                <Dropdown
-                    label='Typ absence'
-                    placeholder="Select an absence type..."
-                    options={absenceTypes.map(choice => ({
-                        key: choice.Id,
-                        text: choice.Title
-                    }))}
-                    errorMessage={errors.absenceType}
-                    onChange={onAbsenceTypeChange}
-                    selectedKey={newAbsence.AbsenceType?.Id || (absenceTypes.length > 0 ? absenceTypes[0].Id : undefined)}
-                />
-                <div className={styles.dateRow}>
-                    <DatePicker
-                        className={styles.datePicker}
-                        firstDayOfWeek={DayOfWeek.Monday}
-                        ariaLabel='Zvolte začátek dovolené'
-                        label='Od'
-                        strings={CzechDatePickerStrings}
-                        value={newAbsence.From}
-                        onSelectDate={onFromChange}
-                        formatDate={onFormatDate}
-                        parseDateFromString={onParseDateFromString}
-                    />
-                    <ChoiceGroup selectedKey={startDayTimeType} options={timeTypeOptions} onChange={onStartDayTimeTypeChange} />
-                    {errors.from && <p className={styles.errorMessage}>{errors.from}</p>}
-                </div>
-                <div className={styles.dateRow}>
-                    {startDayTimeType === 'FullDay' && <DatePicker
-                        className={styles.datePicker}
-                        firstDayOfWeek={DayOfWeek.Monday}
-                        ariaLabel='Zvolte konec dovolené'
-                        label='Do'
-                        strings={CzechDatePickerStrings}
-                        value={newAbsence.To}
-                        onSelectDate={onToChange}
-                        formatDate={onFormatDate}
-                        parseDateFromString={onParseDateFromString}
-                    />}
-                    {startDayTimeType === 'Hourly' && (
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <TimePicker
-                                label="Od"
-                                value={fromTime}
-                                increments={60}
-                                allowFreeform={false}
-                                dateAnchor={new Date(2020, 0, 1, 0, 0, 0, 0)}
-                                onChange={(e, date) => onTimeChange(date, 'from')}
-                            />
-                            <TimePicker
-                                label="Do"
-                                value={toTime}
-                                increments={60}
-                                allowFreeform={false}
-                                dateAnchor={new Date(2020, 0, 1, 0, 0, 0, 0)}
-                                onChange={(e, date) => onTimeChange(date, 'to')}
-                            />
-                        </div>
-                    )}
-                    {errors.to && <p className={styles.errorMessage}>{errors.to}</p>}
-                </div>
+                {renderUserAndTypeSelector()}
+                {renderDateRangeSelector()}
                 <TextField label='Poznámka pro CoHe' multiline rows={3} onChange={onNoteChange} />
                 <TextField label='Poznámka pro nadřízeného' multiline rows={3} onChange={onNoteForLeaderChange} />
             </div>
             {errors.pto && <p className={styles.errorMessage}>{errors.pto}</p>}
             <p>{mainCommitment?.MainCommitment}</p>
-            <div className={styles.actionsContainer} style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ marginRight: 'auto', fontWeight: 'bold' }}>
+            <div className={styles.actionsContainer}>
+                <div className={styles.totalsContainer}>
                     Celkem hodin: {totalHoursRequested} ({totalDaysRequested} dní)
                 </div>
                 <PrimaryButton

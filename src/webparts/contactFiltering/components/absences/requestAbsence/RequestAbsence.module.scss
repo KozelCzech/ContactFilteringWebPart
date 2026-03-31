@@ -36,7 +36,18 @@
     .actionsContainer {
       margin-top: 24px;
       display: flex;
+      align-items: center;
       justify-content: flex-end;
+    }
+
+    .timePickerContainer {
+        display: flex;
+        gap: 10px;
+    }
+
+    .totalsContainer {
+        margin-right: auto;
+        font-weight: bold;
     }
 }
 
