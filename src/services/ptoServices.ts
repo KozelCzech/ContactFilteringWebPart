@@ -1,6 +1,7 @@
 import { SPFI } from "@pnp/sp";
-import { IAbsence, IAbsenceType } from "../webparts/contactFiltering/components/absences/AbsenceInterfaces";
-import { fetchMainCommitment } from "./userUtils";
+import { IAbsence } from "../webparts/contactFiltering/components/absences/AbsenceInterfaces";
+import { fetchMainCommitment } from "./userServices";
+import { SP_LISTS } from "./spConstants";
 
 interface storedPTOHours {
     Id: number;
@@ -26,7 +27,7 @@ export const PTOHoursLeft = async (sp: SPFI, employeeId: number, asOfDate: Date 
         const currentYear = asOfDate.getFullYear();
 
         // 1. Get all PTO grants valid up to the asOfDate
-        const storedPTOHours = await sp.web.lists.getByTitle('PTOHours').items
+        const storedPTOHours = await sp.web.lists.getByTitle(SP_LISTS.PTOHours).items
             .select(
                 'Id',
                 'Employee/Id',
@@ -49,7 +50,7 @@ export const PTOHoursLeft = async (sp: SPFI, employeeId: number, asOfDate: Date 
 
         // 2. Get all approved absences that started in the same year as asOfDate
 
-        const usedAbsences = await sp.web.lists.getByTitle('Absence').items
+        const usedAbsences = await sp.web.lists.getByTitle(SP_LISTS.Absence).items
             .select(
                 'Id',
                 'Employee/Id',
@@ -76,7 +77,7 @@ export const PTOHoursLeft = async (sp: SPFI, employeeId: number, asOfDate: Date 
 
 export const fetchTotalPTOHours = async (sp: SPFI, employeeId: number): Promise<storedPTOHours | undefined> => {
     try {
-        const result = await sp.web.lists.getByTitle('PTOHours').items
+        const result = await sp.web.lists.getByTitle(SP_LISTS.PTOHours).items
                 .select(
                     'Id',
                     'Employee/Id',
@@ -105,7 +106,7 @@ export const createNewYearPTO = async (sp: SPFI, employeeId: number): Promise<vo
         //const workWeekLength = mainCommitment.WorkHoursPerDay * 5;
         
         const leftoverHours = await PTOHoursLeft(sp, employeeId, lastDayOfPreviousYear);
-        const results = await sp.web.lists.getByTitle('ContactFilteringTest').items
+        const results = await sp.web.lists.getByTitle(SP_LISTS.ContactFilteringTest).items
             .select("Id", "TimeOffHours")
             .filter(`Id eq ${employeeId}`)();
 
@@ -141,7 +142,7 @@ export const createNewYearPTO = async (sp: SPFI, employeeId: number): Promise<vo
         const weeksWorked = Math.floor(daysWorked / 7);
         const weeksInYear = 52;
         const newHours = Math.ceil((weeksWorked / weeksInYear) * results[0].TimeOffHours) + leftoverHours;
-        const list = sp.web.lists.getByTitle("PTOHours");
+        const list = sp.web.lists.getByTitle(SP_LISTS.PTOHours);
 
         const result = await list.items
             .select("Id", "Employee/Id", "PTOAmount", "ValidFrom")
@@ -166,36 +167,3 @@ export const createNewYearPTO = async (sp: SPFI, employeeId: number): Promise<vo
         console.error("Error creating new year PTO: ", exception);
     }
 }
-
-
-export const fetchAbsenceTypes = async (sp: SPFI): Promise<IAbsenceType[]> => {
-        try {
-            // Assumes your list is named 'Absences' and the choice field is 'AbsenceType'
-            const results = sp.web.lists.getByTitle("AbsenceTypes").items
-                .select("Id", "Title", "TakesPTO", "isAbsent", "FinancialStatement")();
-
-            const absenceTypes: IAbsenceType[] = await results;
-
-            return absenceTypes as IAbsenceType[];
-        } catch (error) {
-            console.error("Error fetching absence types: ", error);
-            return [];
-        }
-    }
-
-
-export const fetchAllAbsences = async (sp: SPFI): Promise<IAbsence[]> => {
-        try {
-            const result = await sp.web.lists.getByTitle('Absence').items
-                .select('Id', 'Title', 
-                    'Employee/Id', 'Employee/Title', 
-                    'AbsenceTypeId', 'AbsenceType/Title', 'To', 'From', 
-                    'Notes', 'NoteForLeader', 'Approved', 'Rejected',
-                    'FirstMonth', 'SecondMonth', 'HoursUsed').expand('Employee, AbsenceType')();
-    
-            return result as IAbsence[];
-        } catch (exception){
-            console.error("Error fetching absences: ", exception);
-            return [];
-        }
-    }

@@ -11,8 +11,7 @@ import TagEditForm from './tagEditForm/TagEditForm';
 import { AddCircleFilled, DeleteFilled, EditFilled, SearchFilled } from '@fluentui/react-icons';
 import { TextField } from '@fluentui/react';
 import Paginator from '../subComponents/paginator/Paginator';
-import { IItems } from '@pnp/sp/items';
-
+import { deleteTag, getTagsUrl } from '../../../../services/tagServices';
 
 export interface ITagHolderProps {
     sp: SPFI;
@@ -45,7 +44,6 @@ export interface ITagState {
 
 
 const TagHolder: React.FC<ITagHolderProps> = (props) => {
-    const listName: string = "Tags";
     
     const [state, setState] = useState<ITagState>({
         tags: [],
@@ -69,20 +67,8 @@ const TagHolder: React.FC<ITagHolderProps> = (props) => {
     }
 
 
-    const createFilteredQuery = (): IItems => {
-        let itemsQuery = props.sp.web.lists.getByTitle(listName).items;
-        if (state.activeFilter && state.activeFilter.trim() !== "") {
-            const escapedFilterText = state.activeFilter.replace(/'/g, "''");
-            const filterQueryString = `substringof('${escapedFilterText.toLowerCase()}', TagName)`;
-            itemsQuery = itemsQuery.filter(filterQueryString);
-        }
-        return itemsQuery.select(
-            "Id",
-            "Title",
-            "TagName",
-            "Comment",
-            "tagColor"
-        ).top(state.itemsPerPage);
+    const createFilteredQueryUrl = (): string => {
+        return getTagsUrl(props.sp, state.activeFilter, state.itemsPerPage);
     }
 
 
@@ -127,8 +113,7 @@ const TagHolder: React.FC<ITagHolderProps> = (props) => {
 
     const getFirstPage = async ():Promise<void> => {
         setState(s => ({ ...s, isLoading: true }));
-        const initialQuery = createFilteredQuery();
-        const initialUrl = initialQuery.toRequestUrl();
+        const initialUrl = createFilteredQueryUrl();
 
         const cleanedUrl = `${props.webUrl}/${initialUrl}`;
 
@@ -170,7 +155,7 @@ const TagHolder: React.FC<ITagHolderProps> = (props) => {
         }
 
         try {
-            await props.sp.web.lists.getByTitle(listName).items.getById(tagId).delete();
+            await deleteTag(props.sp, tagId);
 
             await loadPageByUrl(state.pageUrls[state.currentPageNumber]);
         } catch (error) {

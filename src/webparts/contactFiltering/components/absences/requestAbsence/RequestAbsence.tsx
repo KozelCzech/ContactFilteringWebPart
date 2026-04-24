@@ -11,9 +11,10 @@ import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/fields";
 import { addDays } from '@fluentui/date-time-utilities';
-import { fetchAllUsers, fetchDepartmentByDepartmentId, fetchDepartmentByUserId, fetchMainCommitment, fetchUserById, fetchUserWorkHours, ICommitment, IDepartment, isUserInGroup } from '../../../../../utils/userUtils';
+import { fetchAllUsers, fetchDepartmentByDepartmentId, fetchDepartmentByUserId, fetchMainCommitment, fetchUserById, fetchUserWorkHours, ICommitment, IDepartment, isUserInGroup } from '../../../../../services/userServices';
 import { getCzechHolidays } from '../../../../../utils/dateUtils';
-import { fetchAbsenceTypes, PTOHoursLeft } from '../../../../../utils/ptoUtils';
+import { PTOHoursLeft } from '../../../../../services/ptoServices';
+import { fetchAbsenceTypes, fetchApprovedAbsences, addAbsence as addAbsenceService, updateAbsence } from '../../../../../services/absenceServices';
 import { requestType, sendAbsenceEmail } from '../../../../../utils/emailUtils';
 
 
@@ -128,16 +129,7 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
 
     const isOnLeave = async (personId: number): Promise<boolean> => {
         try {
-            const result = await sp.web.lists.getByTitle("Absence").items
-                .select('Id', 'Title',
-                    'Employee/Id', 'Employee/Title',
-                    'AbsenceType/Id', 'AbsenceType/Title', 'To',
-                    'From', 'Notes', 'NoteForLeader',
-                    'Approved', 'Approvee/Id', 'Approvee/Title')
-                .expand('Employee, Approvee, AbsenceType')
-                .filter(`Employee/Id eq ${personId} and Approved eq 1`)();
-
-            const absences: IAbsence[] = result as IAbsence[];
+            const absences = await fetchApprovedAbsences(sp, personId);
 
             const today = new Date;
 
@@ -227,8 +219,6 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
             let totalPTOHours = 0;
             PTOHours.forEach(hours => { totalPTOHours += hours });
 
-            const list = sp.web.lists.getByTitle("Absence");
-            // When adding an item with a lookup field, you must use the 'FieldNameId' syntax.
             const bossMan: IContact = await getValidLeader(newAbsence.Employee);
             const itemToAdd = {
                 EmployeeId: newAbsence.Employee.Id,
@@ -245,9 +235,9 @@ const RequestAbsence: React.FC<IRequestAbsenceProps> = (props) => {
                 SecondMonth: PTOHours[1]
             };
             if (existingAbsence && existingAbsence.Id) {
-                await list.items.getById(existingAbsence.Id).update(itemToAdd);
+                await updateAbsence(sp, existingAbsence.Id, itemToAdd);
             } else {
-                await list.items.add(itemToAdd);
+                await addAbsenceService(sp, itemToAdd);
             }
             //Need to request approval after being created
             //TODO: Email Leader if he isnt absent, else email backup leader

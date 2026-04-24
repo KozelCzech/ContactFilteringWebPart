@@ -12,8 +12,9 @@ import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, SelectionMo
 import { CheckmarkFilled, DismissFilled, ClockFilled } from '@fluentui/react-icons';
 import { IAbsence } from '../absences/AbsenceInterfaces';
 import { formatDate } from '../../../../utils/dateUtils';
-import { fetchAbsences, fetchMainCommitment, fetchPositionByUserId, fetchUserById, ICommitment, IPosition } from '../../../../utils/userUtils';
-import { fetchTotalPTOHours, PTOHoursLeft } from '../../../../utils/ptoUtils';
+import { fetchPositionByUserId, fetchUserById, IPosition, fetchMainCommitment, ICommitment } from '../../../../services/userServices';
+import { fetchAbsences, updateAbsence } from '../../../../services/absenceServices';
+import { fetchTotalPTOHours, PTOHoursLeft } from '../../../../services/ptoServices';
 import RequestAbsence from '../absences/requestAbsence/RequestAbsence';
 import { GraphFI } from '@pnp/graph';
 import { sendAbsenceEmail } from '../../../../utils/emailUtils';
@@ -51,9 +52,7 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
 
 
     const deleteUserAbsence = async (Id: number): Promise<void> => {
-        await sp.web.lists.getByTitle("Absence").items.getById(Id).update({
-                Delete: true
-            });
+        await updateAbsence(sp, Id, { Delete: true });
 
         const absence = absences.find(a => a.Id === Id);
         if (!absence) return;
@@ -62,7 +61,7 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
 
         await sendAbsenceEmail(graph, sp, approvee, absence, "Deleted");
         if (onAbsenceUpdate) onAbsenceUpdate();
-        fetchAbsences(sp, contact).then(setAbsences).catch(console.error);  
+        fetchAbsences(sp, contact.Id).then(setAbsences).catch(console.error);  
     }
 
 
@@ -70,7 +69,7 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
         fetchPositionByUserId(sp, contact.Id).then(setPosition).catch(console.error);
         fetchMainCommitment(sp, contact.Id).then(setCommitment).catch(console.error);
 
-        fetchAbsences(sp, contact).then(absences => {
+        fetchAbsences(sp, contact.Id).then(absences => {
                 setAbsences(absences);
                 }).catch(error => {
                 console.error("Error fetching absences: ", error);
@@ -226,7 +225,7 @@ const UserPage: React.FC<IUserPageProps> = (props) => {
                                         existingAbsence={absenceToEdit}
                                         onUpdate={() => {
                                             setAbsenceToEdit(undefined);
-                                            fetchAbsences(sp, contact).then(setAbsences).catch(console.error);
+                                            fetchAbsences(sp, contact.Id).then(setAbsences).catch(console.error);
                                             if (onAbsenceUpdate) onAbsenceUpdate();
                                         }}
                                     />

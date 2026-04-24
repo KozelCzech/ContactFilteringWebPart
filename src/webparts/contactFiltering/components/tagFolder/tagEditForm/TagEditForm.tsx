@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { TextField, IColor, PrimaryButton, Spinner, SpinnerSize, ColorPicker, Callout } from '@fluentui/react';
 import { getContrastColor, isValidColor } from '../../../../../utils/colorUtils';
 import { ColorFilled } from '@fluentui/react-icons';
+import { fetchDefaultColors as fetchDefaultColorsService, addTag as addTagService, updateTag as updateTagService } from '../../../../../services/tagServices';
 
 export interface ITagEditFormProps {
     tag: ITag;
@@ -39,12 +40,7 @@ const TagEditForm: React.FC<ITagEditFormProps> = (props) => {
 
     const fetchDefaultColors = async (): Promise<void> => {
         try {
-            const colorQuery = props.sp.web.lists.getByTitle("DefaultColor").items.select(
-                "Id",
-                "Title"
-            );
-
-            const colors: IDefaultColor[] = await colorQuery();
+            const colors: IDefaultColor[] = await fetchDefaultColorsService(props.sp);
             setDefaultColors(colors);
         } catch (error) {
             console.error("Error getting default colors: ", error);
@@ -88,7 +84,7 @@ const TagEditForm: React.FC<ITagEditFormProps> = (props) => {
     const addTag = async (): Promise<void> => {
         setIsSaving(true);
         try {
-            const list = props.sp.web.lists.getByTitle("Tags");
+            // Removed list reference
             const newItemData: ITag = {
                 Id: editTag.Id,
                 Title: editTag.Title,
@@ -107,10 +103,10 @@ const TagEditForm: React.FC<ITagEditFormProps> = (props) => {
             }
 
             if (editTag.Id === 0) {    
-                await list.items.add(newItemData);
+                await addTagService(props.sp, newItemData);
                 props.onTagSaved(newItemData);
             } else {
-                await list.items.getById(editTag.Id).update(newItemData);
+                await updateTagService(props.sp, editTag.Id, newItemData);
                 props.onTagSaved(newItemData);
             }
 

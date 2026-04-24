@@ -12,8 +12,8 @@ import { ConstrainMode, DetailsList, DetailsListLayoutMode, IColumn, SelectionMo
 import { CheckmarkFilled, DismissFilled } from '@fluentui/react-icons';
 import { IAbsence } from '../absences/AbsenceInterfaces';
 import { formatDate } from '../../../../utils/dateUtils';
-import { fetchPositionByUserId, IPosition } from '../../../../utils/userUtils';
-
+import { fetchPositionByUserId, IPosition } from '../../../../services/userServices';
+import { fetchAbsences } from '../../../../services/absenceServices';
 
 export interface IContactPageProps {
     contact: IContact;
@@ -36,26 +36,9 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
     const attachmentName = JSON.parse(contact.Image || "").fileName;
     const attachmentUrl = `${webAbsoluteUrl}/Lists/${listName}/Attachments/${attachmentId}/${attachmentName}`;
 
-
-    const fetchAbsences = async (): Promise<void> => {
-        try {
-            const result = await sp.web.lists.getByTitle('Absence').items
-                .select('Id', 'Title', 
-                    'Employee/Id', 'Employee/Title', 
-                    'AbsenceType/Id', 'AbsenceType/Title', 'To',
-                    'From', 'Notes', 'Approved').expand('Employee', 'AbsenceType').filter(`Employee/Id eq '${contact.Id}'`)();
-    
-            setAbsences(result as IAbsence[]);
-        } catch (exception){
-            console.error("Error fetching absences: ", exception);
-        }
-    }
-
-
-
     useEffect(() => {
         fetchPositionByUserId(sp, contact.Id).then(setPosition).catch(console.error);
-        fetchAbsences().catch(error => {
+        fetchAbsences(sp, contact.Id).then(setAbsences).catch(error => {
             console.log("Error fetching absences: ", error);
         });
         

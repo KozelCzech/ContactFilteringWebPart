@@ -23,9 +23,11 @@ import UserPage from './userPage/UserPage';
 import RequestAbsence from './absences/requestAbsence/RequestAbsence';
 import ApproveAbsence from './absences/approveAbsence/ApproveAbsence';
 import TabsView from './subComponents/tabsView/tabsView';
-import { fetchAbsencesAwaitingApproval, fetchAllDepartments, fetchEmployeeIdsByDepartment } from '../../../utils/userUtils';
+import { fetchAllDepartments, fetchEmployeeIdsByDepartment } from '../../../services/userServices';
+import { fetchAbsencesAwaitingApproval } from '../../../services/absenceServices';
 import FinancialStatements from './absences/financialStatements/FinancialStatements';
-import { createNewYearPTO } from '../../../utils/ptoUtils';
+import { createNewYearPTO } from '../../../services/ptoServices';
+import { fetchCurrentUser, fetchContactByEmail, getContactItemsUrl } from '../../../services/contactServices';
 
 
 
@@ -98,18 +100,13 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
 
   const createFullQuery = async(): Promise<string> => {
-      let itemsQuery = props.sp.web.lists.getByTitle('ContactFilteringTest').items.select(
+      const selectFields = [
         'Id', 'Title', 'FirstName', 'LastName', 'Image', 'PhoneNumber', 'Email', 
         "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title"
-      ).expand("Leader", "BackupLeader");
-      const filterQuery = activeFilter;
-
-      if (filterQuery) {
-        itemsQuery = itemsQuery.filter(filterQuery);
-      }
-
-      return itemsQuery.top(itemsPerPage).toRequestUrl();
-
+      ];
+      const expandFields = ["Leader", "BackupLeader"];
+      
+      return getContactItemsUrl(props.sp, selectFields, activeFilter, itemsPerPage, expandFields);
   }
 
 
@@ -174,13 +171,8 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   const fetchUser = async(): Promise<void> => {
     try {
-      const user = await props.sp.web.currentUser();
-
-      const result = await props.sp.web.lists.getByTitle("ContactFilteringTest").items
-      .select(
-        'Id', 'Title', 'FirstName', 'LastName', 'Image', 'PhoneNumber', 'Email', 
-        "Leader/ID", "Leader/Title", "BackupLeader/ID", "BackupLeader/Title", "TimeOffHours"
-      ).expand("Leader", "BackupLeader").filter(`Email eq '${user.Email}'`)();
+      const user = await fetchCurrentUser(props.sp);
+      const result = await fetchContactByEmail(props.sp, user.Email);
       setCurrentUser(result[0] as IContact);
 
 

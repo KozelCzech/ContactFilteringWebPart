@@ -11,7 +11,9 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { formatDate, getCzechHolidaysCallendarEvents } from '../../../../../utils/dateUtils';
 import { IContact } from '../../../models/IContact';
 import TabsView from '../../subComponents/tabsView/tabsView';
-import { fetchAllDepartments, fetchEmployeeIdsByDepartment } from '../../../../../utils/userUtils';
+import { fetchAllDepartments, fetchEmployeeIdsByDepartment } from '../../../../../services/userServices';
+import { fetchAbsencesWithFilter, fetchAbsenceTypes as fetchAbsenceTypesService } from '../../../../../services/absenceServices';
+import { fetchContactItems } from '../../../../../services/contactServices';
 
 import dayGridPlugin from '@fullcalendar/daygrid';
 import cs from '@fullcalendar/core/locales/cs';
@@ -55,20 +57,7 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
 
     // #region SetUp
     const fetchAbsences = async (filter: string = ""): Promise<IAbsence[]> => {
-        try {
-            const items = sp.web.lists.getByTitle('Absence').items
-                .select('Id', 'Title', 
-                    'Employee/Id', 'Employee/Title',
-                    'AbsenceType/Id', 'AbsenceType/Title', 'To',
-                    'From', 'Notes', 'NoteForLeader', 'Approved', 'Rejected').expand('Employee,AbsenceType');
-            
-            const result = filter ? await items.filter(filter)() : await items();
-
-            return result as IAbsence[];
-        } catch (error) {
-            console.error("Error fetching options: ", error);
-            return [];
-        }
+        return await fetchAbsencesWithFilter(sp, filter);
     }
 
 
@@ -90,9 +79,7 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
             const filterQuery = absenceContactIds.map(id => `ID eq ${id}`).join(' or ');
             
             // 3. Fetch all contacts in a single request.
-            const resolvedContacts = await sp.web.lists.getByTitle('ContactFilteringTest').items
-                .select('ID', 'Title', 'FirstName', 'LastName')
-                .filter(filterQuery)();
+            const resolvedContacts = await fetchContactItems(sp, ['Id', 'Title', 'FirstName', 'LastName'], filterQuery);
 
             setContacts(resolvedContacts);
 
@@ -134,14 +121,10 @@ const AbsenceList: React.FC<AbsenceListProps> = (props) => {
 
     const fetchAbsenceTypes = async (): Promise<void> => {
         try {
-            // Assumes your list is named 'Absences' and the choice field is 'AbsenceType'
-            const results = await sp.web.lists.getByTitle("AbsenceTypes").items
-                .select("Id", "Title")();
-    
-            const absenceTypes: IAbsenceType[] = results;
+            const absenceTypes = await fetchAbsenceTypesService(sp);
     
             if (absenceTypes && absenceTypes.length > 0) {
-                const options: IDropdownOption[] = absenceTypes.map(type => ({
+                const options: IDropdownOption[] = absenceTypes.map((type: IAbsenceType) => ({
                     key: type.Id,
                     text: type.Title
                 }));

@@ -1,6 +1,6 @@
 import { SPFI } from "@pnp/sp";
 import { IContact } from "../webparts/contactFiltering/models/IContact";
-import { IAbsence } from "../webparts/contactFiltering/components/absences/AbsenceInterfaces";
+import { SP_LISTS } from "./spConstants";
 
 
 export interface IDepartment {
@@ -34,7 +34,7 @@ export interface ICommitment {
 
 export const fetchUserWorkHours = async (sp: SPFI, userId: number): Promise<number> => {
     try {
-        const results = await sp.web.lists.getByTitle('Uvazky').items
+        const results = await sp.web.lists.getByTitle(SP_LISTS.Uvazky).items
             .select(
                 "Id", "Title", "WorkHoursPerDay", "MainCommitment", "From", "To",
                 "Employee/Id", "Employee/Title",
@@ -57,7 +57,7 @@ export const fetchUserWorkHours = async (sp: SPFI, userId: number): Promise<numb
 
 export const fetchUserById = async (sp: SPFI, userId: number): Promise<IContact> => {
     try {
-        const results = await sp.web.lists.getByTitle('ContactFilteringTest').items.getById(userId)
+        const results = await sp.web.lists.getByTitle(SP_LISTS.ContactFilteringTest).items.getById(userId)
             .select('Id', 'Title', 'FirstName', 'Email', 'LastName', 'Leader/Id', 'Leader/Title').expand('Leader')();
 
         return results as IContact;
@@ -70,7 +70,7 @@ export const fetchUserById = async (sp: SPFI, userId: number): Promise<IContact>
 
 export const fetchAllUsers = async (sp: SPFI ): Promise<IContact[]> => {
     try {
-        const results = await sp.web.lists.getByTitle('ContactFilteringTest').items
+        const results = await sp.web.lists.getByTitle(SP_LISTS.ContactFilteringTest).items
             .select('Id', 'Title', 'FirstName', 'LastName')();
 
         return results as IContact[];
@@ -82,7 +82,7 @@ export const fetchAllUsers = async (sp: SPFI ): Promise<IContact[]> => {
 
 
 export const fetchMainCommitment = async (sp: SPFI, userId: number): Promise<ICommitment> => {
-    const result = await sp.web.lists.getByTitle('Uvazky').items
+    const result = await sp.web.lists.getByTitle(SP_LISTS.Uvazky).items
         .select('Id', 'Title', 'Employee/Id', 'Employee/Title', 'Position/Id', 'Position/Title',
              'MainCommitment', 'From', 'To', 'WorkHoursPerDay')
         .expand('Employee', 'Position')
@@ -98,7 +98,7 @@ export const fetchPositionByUserId = async (sp: SPFI, userId: number): Promise<I
     if (!commitment?.Position?.Id) return undefined;
 
     try {
-        const result = await sp.web.lists.getByTitle('Pozice').items.getById(commitment.Position.Id)
+        const result = await sp.web.lists.getByTitle(SP_LISTS.Pozice).items.getById(commitment.Position.Id)
             .select('Id', 'Title', 'Department/Id', 'Department/Title')
             .expand('Department')();
             
@@ -113,7 +113,7 @@ export const fetchDepartmentByUserId = async (sp: SPFI, userId: number): Promise
     const position = await fetchPositionByUserId(sp, userId);
     if (!position?.Department?.Id) return undefined;
     try {
-        const result = await sp.web.lists.getByTitle("Oddeleni").items
+        const result = await sp.web.lists.getByTitle(SP_LISTS.Oddeleni).items
             .getById(position.Department.Id)
             .select('Id', 'Title', 'UniqueCode', 'Location', 'Leader/Id', 'Leader/Title',
                  'LeaderDepartment/Id', 'LeaderDepartment/Title').expand('Leader', 'LeaderDepartment')();
@@ -127,7 +127,7 @@ export const fetchDepartmentByUserId = async (sp: SPFI, userId: number): Promise
 
 export const fetchDepartmentByDepartmentId = async (sp: SPFI, departmentId: number): Promise<IDepartment | undefined> => {
     try {
-        const result = await sp.web.lists.getByTitle("Oddeleni").items
+        const result = await sp.web.lists.getByTitle(SP_LISTS.Oddeleni).items
             .getById(departmentId)
             .select('Id', 'Title', 'UniqueCode', 'Location', 'Leader/Id', 'Leader/Title',
                  'LeaderDepartment/Id', 'LeaderDepartment/Title').expand('Leader', 'LeaderDepartment')();
@@ -147,7 +147,7 @@ export const getLeaderInfo = async (sp: SPFI, user: IContact): Promise<IContact>
 export const fetchEmployeeIdsByDepartment = async (sp: SPFI, departmentKey: number): Promise<number[]> => {
     try {
         // 1. Get all Position IDs for the given department UniqueCode
-        const positions = await sp.web.lists.getByTitle('Pozice').items
+        const positions = await sp.web.lists.getByTitle(SP_LISTS.Pozice).items
             .select('Id')
             .filter(`Department/UniqueCode eq ${departmentKey}`)();
 
@@ -158,11 +158,9 @@ export const fetchEmployeeIdsByDepartment = async (sp: SPFI, departmentKey: numb
         const positionIds = positions.map(p => p.Id);
 
         // 2. Build a filter to get all commitments for those positions
-        // SharePoint has a URL length limit, so we may need to batch this if there are many positions.
-        // For a reasonable number of positions (< 100), a single query should be fine.
         const positionFilter = positionIds.map(id => `Position/Id eq ${id}`).join(' or ');
 
-        const commitments = await sp.web.lists.getByTitle('Uvazky').items
+        const commitments = await sp.web.lists.getByTitle(SP_LISTS.Uvazky).items
             .select('Employee/Id')
             .expand('Employee')
             .filter(positionFilter)();
@@ -180,46 +178,9 @@ export const fetchEmployeeIdsByDepartment = async (sp: SPFI, departmentKey: numb
     }
 };
 
-export const fetchAbsencesAwaitingApproval = async (sp: SPFI, user: IContact): Promise<IAbsence[]> => {
-        try {
-            const results = await sp.web.lists.getByTitle('Absence').items
-                .select('Id', 'Title', 
-                    'Employee/Id', 'Employee/Title', 
-                    'AbsenceType/Id', "AbsenceType/Title", 'To',
-                    'From', 'Notes', 'NoteForLeader', 'Delete',
-                    'Approved', 'Rejected', 'Approvee/Id', 'Approvee/Title', 'HoursUsed')
-                .expand('Employee, Approvee, AbsenceType')
-                .filter(`Approvee/Id eq ${user.Id}`)();
-                    
-            const filteredResults = results.filter((item: IAbsence) => {
-                return ((!item.Approved && !item.Delete && !item.Rejected) || (item.Delete));
-            });
-
-            return filteredResults as IAbsence[];
-        } catch (exception) {
-            console.error("Error fetching absences awaiting approval: ", exception);
-            return [];
-        }
-    };
-
-export const fetchAbsences = async (sp: SPFI, contact: IContact): Promise<IAbsence[]> => {
-        try {
-            const result = await sp.web.lists.getByTitle('Absence').items
-                .select('Id', 'Title', 
-                    'Employee/Id', 'Employee/Title', 
-                    'AbsenceTypeId', 'AbsenceType/Title', 'To', 'Delete', 'Approvee/Id', 'Approvee/Title',
-                    'From', 'Notes', 'NoteForLeader', 'Approved', 'Rejected').expand('Employee, AbsenceType', 'Approvee').filter(`Employee/Id eq '${contact.Id}'`)();
-    
-            return result as IAbsence[];
-        } catch (exception){
-            console.error("Error fetching absences: ", exception);
-            return [];
-        }
-    }
-
 export const fetchAllDepartments = async (sp: SPFI): Promise<IDepartment[]> => {
     try {
-        const result = await sp.web.lists.getByTitle('Oddeleni').items
+        const result = await sp.web.lists.getByTitle(SP_LISTS.Oddeleni).items
         .select('Id', 'Title', 'UniqueCode', 'Location', 'Leader/Id', 'Leader/Title').expand('Leader')();
 
         return result as IDepartment[];
@@ -231,27 +192,18 @@ export const fetchAllDepartments = async (sp: SPFI): Promise<IDepartment[]> => {
 
 export const fetchAllCommitments = async (sp: SPFI): Promise<ICommitment[]> => {
     try {
-        const results = await sp.web.lists.getByTitle('Uvazky').items
+        const results = await sp.web.lists.getByTitle(SP_LISTS.Uvazky).items
             .select(
                 "Id", "Title", "WorkHoursPerDay", "MainCommitment", "From", "To",
                 "Employee/Id", "Employee/Title",
-                "Position/Id", "Position/Title" // Removed the unsupported nested select
+                "Position/Id", "Position/Title"
             )
-            .expand("Employee", "Position")(); // Removed the unsupported nested expand
+            .expand("Employee", "Position")();
 
         return results as ICommitment[];
     } catch (exception) {
         console.error("Error fetching commitments: ", exception);
         return [];
-    }
-}
-
-export const deleteAbsence = async (sp: SPFI, id: number): Promise<void> => {
-    try {
-        await sp.web.lists.getByTitle('Absence').items.getById(id).delete();
-    } catch (exception) {
-        console.error("Error deleting absence: ", exception);
-        return;
     }
 }
 

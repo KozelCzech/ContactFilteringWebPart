@@ -2,7 +2,7 @@ import * as React from 'react';
 import styles from './ContactFiltering.module.scss'; // Your SCSS styles
 import { IContact } from '../models/IContact';
 import { SPFI } from '@pnp/sp';
-import { fetchPositionByUserId, IPosition } from '../../../utils/userUtils';
+import { fetchPositionByUserId, IPosition } from '../../../services/userServices';
 
 export interface IContactCardProps{
     sp: SPFI;

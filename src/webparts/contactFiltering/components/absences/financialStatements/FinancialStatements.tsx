@@ -6,9 +6,9 @@ import * as React from 'react';
 import { useEffect, useState } from 'react';
 import styles from './FinancialStatements.module.scss';
 import { IAbsence, IAbsenceType } from '../AbsenceInterfaces';
-import { fetchAbsenceTypes, fetchAllAbsences } from '../../../../../utils/ptoUtils';
+import { fetchAbsenceTypes, fetchAllAbsences } from '../../../../../services/absenceServices';
 import { IContact } from '../../../models/IContact';
-import { fetchDepartmentByUserId, fetchUserById, IDepartment,  } from '../../../../../utils/userUtils';
+import { fetchDepartmentByUserId, fetchUserById, IDepartment } from '../../../../../services/userServices';
 import { notoSansRegularBase64 } from '../../../../../utils/customFonts';
 
 
@@ -51,9 +51,9 @@ const FinancialStatements: React.FC<FinancialStatementsProps> = (props) => {
     
     
     useEffect(() => {
-        fetchAbsenceTypes(sp).then(types => {
+        fetchAbsenceTypes(sp).then((types: IAbsenceType[]) => {
             setFetchedAbsenceTypes(types); // Store fetched types in state
-        }).catch(error => {
+        }).catch((error: any) => {
             console.error("Error fetching absence types:", error);
         });
     }, [sp]); // Re-run if 'sp' object changes

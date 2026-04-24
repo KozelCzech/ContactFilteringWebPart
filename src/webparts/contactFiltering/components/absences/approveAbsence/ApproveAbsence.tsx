@@ -7,7 +7,9 @@ import { useEffect, useState } from 'react';
 import { IAbsence } from '../AbsenceInterfaces';
 import { formatDate } from '../../../../../utils/dateUtils';
 import { DefaultButton, PrimaryButton } from '@fluentui/react/lib/Button';
-import { fetchAbsencesAwaitingApproval, deleteAbsence, fetchUserById } from '../../../../../utils/userUtils';
+import { fetchUserById } from '../../../../../services/userServices';
+import { fetchAbsencesAwaitingApproval, deleteAbsence, updateAbsence } from '../../../../../services/absenceServices';
+import { fetchContactItems } from '../../../../../services/contactServices';
 import { GraphFI } from '@pnp/graph';
 import { sendAbsenceResponseEmail } from '../../../../../utils/emailUtils';
 
@@ -36,10 +38,7 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
             // 2. Build a single filter query to get all contacts at once.
             const filterQuery = absenceContactIds.map(id => `ID eq ${id}`).join(' or ');
             
-            // 3. Fetch all contacts in a single request.
-            const resolvedContacts = await sp.web.lists.getByTitle('ContactFilteringTest').items
-                .select('ID', 'Title', 'FirstName', 'LastName')
-                .filter(filterQuery)();
+            const resolvedContacts = await fetchContactItems(sp, ['Id', 'Title', 'FirstName', 'LastName'], filterQuery);
             
             setContacts(resolvedContacts);
 
@@ -61,8 +60,7 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
             } else {
                 await sendAbsenceResponseEmail(graph, requestee, absence, "Approved");
 
-                const absenceId: number = absence.Id;
-                await sp.web.lists.getByTitle('Absence').items.getById(absenceId).update({
+                await updateAbsence(sp, absence.Id, {
                     Approved: true
                 });
             }
@@ -83,13 +81,13 @@ const ApproveAbsence: React.FC<IApproveAbsenceProps> = (props) => {
             if (absence.Delete) {
                 await sendAbsenceResponseEmail(graph, requestee, absence, "DeletionRejected");
 
-                await sp.web.lists.getByTitle('Absence').items.getById(absenceId).update({
+                await updateAbsence(sp, absenceId, {
                     Delete: false
                 });
             } else {
                 await sendAbsenceResponseEmail(graph, requestee, absence, "Rejected");
 
-                await sp.web.lists.getByTitle('Absence').items.getById(absenceId).update({
+                await updateAbsence(sp, absenceId, {
                     Approved: false,
                     Rejected: true,
                     Delete: false

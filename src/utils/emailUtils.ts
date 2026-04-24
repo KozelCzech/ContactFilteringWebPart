@@ -4,7 +4,7 @@ import "@pnp/graph/mail";
 import "@pnp/graph/mail/messages";
 import { Message } from "@microsoft/microsoft-graph-types";
 import { IContact } from "../webparts/contactFiltering/models/IContact";
-import { fetchUserById } from "./userUtils";
+import { fetchUserById } from "../services/userServices";
 import { SPFI } from "@pnp/sp";
 import { IAbsence } from "../webparts/contactFiltering/components/absences/AbsenceInterfaces";
 
