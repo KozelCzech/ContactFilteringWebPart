@@ -9,28 +9,15 @@ import {
   PrimaryButton,
   Image,
   ImageFit,
-  Spinner,
-  PivotItem
+  Spinner
 } from '@fluentui/react';
 import { IContact } from '../models/IContact';
 import ContactCard from './ContactCard';
-//import TagHolder from './tagFolder/TagHolder';
 import Modal from './subComponents/modal/Modal';
 import Paginator from './subComponents/paginator/Paginator';
-import AbsenceList from './absences/AbsenceList/AbsenceList';
 import ContactPage from './contactPage/ContactPage';
-import UserPage from './userPage/UserPage';
-import RequestAbsence from './absences/requestAbsence/RequestAbsence';
-import ApproveAbsence from './absences/approveAbsence/ApproveAbsence';
-import TabsView from './subComponents/tabsView/tabsView';
 import { fetchAllDepartments, fetchEmployeeIdsByDepartment } from '../../../services/userServices';
-import { fetchAbsencesAwaitingApproval } from '../../../services/absenceServices';
-import FinancialStatements from './absences/financialStatements/FinancialStatements';
-import { createNewYearPTO } from '../../../services/ptoServices';
 import { fetchCurrentUser, fetchContactByEmail, getContactItemsUrl } from '../../../services/contactServices';
-
-
-
 
 const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [contacts, setContacts] = useState<IContact[]>([]);
@@ -46,7 +33,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [activeFilter, setActiveFilter] = useState<string>("");
   
   const [selectedContact, setSelectedContact] = useState<IContact | undefined>(undefined);
-  //const [isTagCreator, setIsTagCreator] = useState<boolean>(false);
 
   const [pageUrls, setPageUrls] = useState<string[]>([]);
   const [currentPageNumber, setCurrentPageNumber] = useState<number>(0);
@@ -55,12 +41,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   const [ userModalOpen, setUserModalOpen ] = useState<boolean>(false);
   const [ currentUser, setCurrentUser] = useState<IContact>();
-
-  const [ requestAbsenceModalOpen, setRequestAbsenceModalOpen ] = useState<boolean>(false);
-  const [ approveAbsenceModalOpen, setApproveAbsenceModalOpen ] = useState<boolean>(false);
-  const [ financialStatementsModalOpen, setFinancialStatementsModalOpen ] = useState<boolean>(false);
-
-  const [ showApproveAbsence, setShowApproveAbsence ] = useState<boolean>(false);
 
   const listName: string = "ContactFilteringTest";
   
@@ -143,7 +123,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     } finally {
         setIsLoading(false);
     }
-}, [props.sp]);
+  }, [props.sp]);
 
 
   const getFirstPage = async (): Promise<void> => {
@@ -232,19 +212,16 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   };
   
   
-    const handleUserPageClick = (): void => {
-      setUserModalOpen(true);
-    };
+  const handleUserPageClick = (): void => {
+    setUserModalOpen(true);
+  };
 
 
-    const handleCloseUserPageModal = (): void => {
-      setUserModalOpen(false);
-    }
+  const handleCloseUserPageModal = (): void => {
+    setUserModalOpen(false);
+  }
 
 
-    /*const handleUserPageUpdate = (): void => {
-      setUserModalOpen(false);
-    }*/
 
 
   const handleNext = (): void => {
@@ -261,30 +238,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     }
 
 
-    const handleRequestAbsenceClick = (): void => {
-      setRequestAbsenceModalOpen(true);
-    }
-
-
-    const handleRequestAbsenceUpdate = (): void => {
-      setRequestAbsenceModalOpen(false);
-    }
-
-    const handleApproveAbsenceClick = (): void => {
-      setApproveAbsenceModalOpen(true);
-    }
-
-    const handleApproveAbsenceUpdate = (): void => {
-      setApproveAbsenceModalOpen(false);
-    }
-
-    const handleFinancialStatementsClick = (): void => {
-      setFinancialStatementsModalOpen(true);
-    }
-
-    const handleFinancialStatementsUpdate = (): void => {
-      setFinancialStatementsModalOpen(false);
-    }
 
 
     const fetchUserImage = (): string => {
@@ -299,28 +252,12 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     }
 
 
-    const approveAbsenceRequired = async (): Promise<void> => {
-      if (currentUser) {
-        const absencesToApprove = await fetchAbsencesAwaitingApproval(props.sp, currentUser);
-        if (absencesToApprove.length > 0) {
-          setShowApproveAbsence(true);
-        } else {
-          setShowApproveAbsence(false);
-        }
-      } else {
-        setShowApproveAbsence(false);
-      }
-    }
-
-
   // #endregion
   
   useEffect(() => {
     const init = async (): Promise<void> => {
       console.log("Component did mount");
       await getFirstPage();
-      //const tagCreatorStatus = await isUserInGroup("TagCreators");
-      //setIsTagCreator(tagCreatorStatus);
       setItemsPerPage(10);
 
       fetchUser().catch(error => console.error("Error fetching user email:", error));
@@ -330,8 +267,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
         options.unshift({ key: "", text: "Všechna oddělení" });
         setDepartmentOptions(options);
       }).catch(error => console.error("Error fetching departments:", error));
-
-      approveAbsenceRequired().catch(error => console.error("Error fetching user email:", error));
     };
 
     // eslint-disable-next-line no-void
@@ -345,11 +280,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   }, [activeFilter])
 
   useEffect(() => {
-    approveAbsenceRequired()
-      .catch(error => console.error("Error fetching user email:", error));
-  }, [currentUser, approveAbsenceModalOpen, requestAbsenceModalOpen])
-
-  useEffect(() => {
     if (currentPageNumber === 0 || currentPageNumber > 0 ) {
             const urlToLoad = pageUrls[currentPageNumber];
             if (urlToLoad) {
@@ -360,104 +290,64 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
         }
   }, [currentPageNumber]);
 
-  // You only need one useEffect to handle the initialization
-  useEffect(() => {
-    if (currentUser) {
-      // This runs once when the component loads or the user is identified
-      createNewYearPTO(props.sp, currentUser.Id).catch(error => {
-        console.error("Error creating new year PTO: ", error);
-      });
-    }
-  }, [currentUser]); // Triggered only when the user is loaded
-
 
   return (
     <div className={styles.contactFiltering}>
       <div className={styles.headerActionsContainer}>
         <div className={styles.headerActions}>
-          <div onClick={handleRequestAbsenceClick}>Žádost o nepřítomnost</div>
-          {showApproveAbsence && <div onClick={handleApproveAbsenceClick}>Schválit nepřítomnost</div>}
-          <div onClick={handleFinancialStatementsClick}>Měsíční shrnutí</div>
           <div onClick={handleUserPageClick} className={styles.userAction} >
             {currentUser?.Image && <Image src={fetchUserImage()} className={styles.userImage} imageFit={ImageFit.cover} />}
           </div>
         </div>
       </div>
-      <TabsView>
-        <PivotItem headerText='Contakty' itemKey='contacts'>
-          <div className={styles.filtersContainer}>
-            <TextField label="Jméno:" placeholder="Zadej jméno nebo příjmení..." value={nameText} onChange={onNameTextChange} />
-            <TextField label="Tel. číslo:" placeholder="Zadej tel. číslo..." value={phoneNumberText} onChange={onPhoneNumberTextChange} />
-            <TextField label="Email:" placeholder="Zadej email..." value={emailText} onChange={onEmailTextChange} />
-            <Dropdown
-              label="Oddělení:"
-              placeholder="Vyberte oddělení"
-              options={departmentOptions}
-              selectedKey={departmentKey}
-              onChange={onDepartmentChange} />
-          </div>
-          <div className={styles.actionsContainer}>
-            <PrimaryButton text="Aplikovat filtry" onClick={createFilter} style={{ marginRight: '8px' }} />
-            <PrimaryButton text="Vymazat filtry" onClick={onClearFilterClick} />
-          </div>
-          <div className={styles.resultsContainer}>
-            {isLoading ? (
-              <Spinner label="Načítám kontakty..." />
-            ) : (
-              <Paginator
-                hasNext={hasNext}
-                hasPrevious={currentPageNumber > 0}
-                currentPageNumber={currentPageNumber}
-                handleNext={handleNext}
-                handlePrevious={handlePrevious}
-              >
-                <div className={styles.cardContainer}>
-                  {contacts.map((contact: IContact) => (
-                    <ContactCard key={contact.Id} sp={props.sp} contact={contact} webAbsoluteUrl={props.webAbsoluteUrl} onClick={() => handleContactCardClick(contact)} />
-                  ))}
-                </div>
-              </Paginator>
-            )}
-          </div>
-        </ PivotItem>
-        <PivotItem headerText='Absence' itemKey='absences'>
-          <AbsenceList sp={props.sp} requestModalOpen={requestAbsenceModalOpen} approveModalOpen={approveAbsenceModalOpen}/>
-        </PivotItem>
-        { /*isTagCreator && <PivotItem headerText='Tags' itemKey='tags'>
-          <TagHolder sp={props.sp} webUrl={props.webAbsoluteUrl} />
-        </PivotItem> */}
-      </TabsView>
+      
+      <div className={styles.filtersContainer}>
+        <TextField label="Jméno:" placeholder="Zadej jméno nebo příjmení..." value={nameText} onChange={onNameTextChange} />
+        <TextField label="Tel. číslo:" placeholder="Zadej tel. číslo..." value={phoneNumberText} onChange={onPhoneNumberTextChange} />
+        <TextField label="Email:" placeholder="Zadej email..." value={emailText} onChange={onEmailTextChange} />
+        <Dropdown
+          label="Oddělení:"
+          placeholder="Vyberte oddělení"
+          options={departmentOptions}
+          selectedKey={departmentKey}
+          onChange={onDepartmentChange} />
+      </div>
+      <div className={styles.actionsContainer}>
+        <PrimaryButton text="Aplikovat filtry" onClick={createFilter} style={{ marginRight: '8px' }} />
+        <PrimaryButton text="Vymazat filtry" onClick={onClearFilterClick} />
+      </div>
+      <div className={styles.resultsContainer}>
+        {isLoading ? (
+          <Spinner label="Načítám kontakty..." />
+        ) : (
+          <Paginator
+            hasNext={hasNext}
+            hasPrevious={currentPageNumber > 0}
+            currentPageNumber={currentPageNumber}
+            handleNext={handleNext}
+            handlePrevious={handlePrevious}
+          >
+            <div className={styles.cardContainer}>
+              {contacts.map((contact: IContact) => (
+                <ContactCard key={contact.Id} sp={props.sp} contact={contact} webAbsoluteUrl={props.webAbsoluteUrl} onClick={() => handleContactCardClick(contact)} />
+              ))}
+            </div>
+          </Paginator>
+        )}
+      </div>
+
       <Modal isOpen={userModalOpen} onClose={handleCloseUserPageModal} width='medium'>
-        {currentUser && <UserPage sp={props.sp} 
+        {currentUser && <ContactPage sp={props.sp} 
           contact={currentUser} 
           webAbsoluteUrl={props.webAbsoluteUrl} 
-          graph={props.graph}
-          //isTagCreator={isTagCreator}
-          //onUpdate={handleUserPageUpdate}
-          onAbsenceUpdate={approveAbsenceRequired}
           />}
       </Modal>
       <Modal isOpen={!!selectedContact} onClose={handleCloseContactModal} width='medium'>
         {selectedContact && <ContactPage sp={props.sp} 
           contact={selectedContact} 
           webAbsoluteUrl={props.webAbsoluteUrl} 
-          //isTagCreator={isTagCreator} 
-          //onUpdate={handleContactUpdate} 
           />}
       </Modal>
-      <Modal isOpen={requestAbsenceModalOpen} onClose={handleRequestAbsenceUpdate}>
-        {currentUser && 
-          <RequestAbsence user={currentUser} sp={props.sp} graph={props.graph}
-            onUpdate={handleRequestAbsenceUpdate}/> 
-        }
-      </Modal>
-      <Modal isOpen={approveAbsenceModalOpen} onClose={handleApproveAbsenceUpdate} width='large'>
-        {currentUser && <ApproveAbsence sp={props.sp} user={currentUser} graph={props.graph} onUpdate={handleApproveAbsenceUpdate}/>}
-      </ Modal>
-      <Modal isOpen={financialStatementsModalOpen} onClose={handleFinancialStatementsUpdate} width='large'>
-        <FinancialStatements sp={props.sp} />
-      </ Modal>
-        
     </div>
   );
 };
