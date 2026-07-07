@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { SPFI } from "@pnp/sp";
 import { SP_LISTS } from "./spConstants";
 

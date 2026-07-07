@@ -28,6 +28,7 @@
     "@microsoft/sp-webpart-base": "1.21.1",
     "@pnp/graph": "^4.18.0",
     "@pnp/sp": "^4.18.0",
+    "caniuse-lite": "^1.0.30001793",
     "jspdf": "^4.1.0",
     "jspdf-autotable": "^5.0.2",
     "react": "17.0.1",

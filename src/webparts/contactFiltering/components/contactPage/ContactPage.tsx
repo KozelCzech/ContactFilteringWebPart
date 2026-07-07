@@ -24,8 +24,15 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
 
     const listName = "ContactFilteringTest";
     const attachmentId = contact.Id;
-    const attachmentName = JSON.parse(contact.Image || "").fileName;
-    const attachmentUrl = `${webAbsoluteUrl}/Lists/${listName}/Attachments/${attachmentId}/${attachmentName}`;
+    let attachmentUrl = "";
+    try {
+        if (contact.Image) {
+            const attachmentName = JSON.parse(contact.Image).fileName;
+            attachmentUrl = `${webAbsoluteUrl}/Lists/${listName}/Attachments/${attachmentId}/${attachmentName}`;
+        }
+    } catch (e) {
+        console.error("Error parsing contact image JSON: ", e);
+    }
 
     useEffect(() => {
         fetchPositionByUserId(sp, contact.Id).then(setPosition).catch(console.error);
@@ -35,10 +42,12 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
     return (
         <div className={styles.contactPage}>
             <div className={styles.header}>
-                <img
-                    src={attachmentUrl}
-                    className={styles.contactImage}
-                />
+                {attachmentUrl && (
+                    <img
+                        src={attachmentUrl}
+                        className={styles.contactImage}
+                    />
+                )}
                 <div className={styles.headerText}>
                     <h3 style={{ marginBottom: 4 }}>{contact.FirstName || ""}  {contact.LastName || ""}</h3>
                     {position && <div style={{ fontWeight: 600, color: '#0078d4', marginBottom: 2 }}>{position.Title}</div>}

@@ -242,13 +242,14 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
     const fetchUserImage = (): string => {
       try {
-        const attachmentName = JSON.parse(currentUser?.Image || "").fileName;
-        const attachmentUrl = `${props.webAbsoluteUrl}/Lists/${listName}/Attachments/${currentUser?.Id}/${attachmentName}`;
-        return attachmentUrl;
+        if (currentUser?.Image) {
+          const attachmentName = JSON.parse(currentUser.Image).fileName;
+          return `${props.webAbsoluteUrl}/Lists/${listName}/Attachments/${currentUser.Id}/${attachmentName}`;
+        }
       } catch (exception) {
-        console.error(exception);
-        return "";
+        console.error("Error parsing user image JSON: ", exception);
       }
+      return "";
     }
 
 

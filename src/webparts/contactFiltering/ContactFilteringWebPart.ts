@@ -18,6 +18,7 @@ import '@pnp/sp/items';
 import '@pnp/sp/site-users/web';
 import '@pnp/sp/fields';
 import { graphfi, GraphFI, SPFx as graphSPFx, } from '@pnp/graph';
+import { provisionLists } from '../../services/listProvisioningService';
 
 export interface IContactFilteringWebPartProps {
   description: string;
@@ -46,7 +47,13 @@ export default class ContactFilteringWebPart extends BaseClientSideWebPart<ICont
   protected async onInit(): Promise<void> {
     await super.onInit();
     this._sp = spfi().using(SPFx(this.context));
-    this._graph = graphfi().using(graphSPFx(this.context))
+    this._graph = graphfi().using(graphSPFx(this.context));
+
+    try {
+      await provisionLists(this._sp);
+    } catch (error) {
+      console.error("List provisioning failed during onInit: ", error);
+    }
   }
 
 

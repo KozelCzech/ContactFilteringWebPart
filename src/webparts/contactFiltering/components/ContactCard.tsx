@@ -17,8 +17,15 @@ const ContactCard: React.FC<IContactCardProps> = (props) => {
 
     const listName = "ContactFilteringTest";
     const attachmentId = contact.Id;
-    const attachmentName = JSON.parse(contact.Image || "").fileName;
-    const attachmentUrl = `${webAbsoluteUrl}/Lists/${listName}/Attachments/${attachmentId}/${attachmentName}`;
+    let attachmentUrl = "";
+    try {
+        if (contact.Image) {
+            const attachmentName = JSON.parse(contact.Image).fileName;
+            attachmentUrl = `${webAbsoluteUrl}/Lists/${listName}/Attachments/${attachmentId}/${attachmentName}`;
+        }
+    } catch (e) {
+        console.error("Error parsing contact image JSON: ", e);
+    }
 
     React.useEffect(() => {
         fetchPositionByUserId(sp, contact.Id).then(setPosition).catch(console.error);
@@ -27,10 +34,12 @@ const ContactCard: React.FC<IContactCardProps> = (props) => {
   return (
     <div className={styles.contactCard} onClick={onClick}>
         <div>
-            <img 
-                src={attachmentUrl}
-                className={styles.contactImage}
-            />
+            {attachmentUrl && (
+                <img 
+                    src={attachmentUrl}
+                    className={styles.contactImage}
+                />
+            )}
         </div>
         <div className={styles.contactInfo}>
             <h3>{contact.FirstName || ""}  {contact.LastName || ""}</h3>
