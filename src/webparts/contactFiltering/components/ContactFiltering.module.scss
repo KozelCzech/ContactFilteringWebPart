@@ -1,128 +1,423 @@
-/* Default styles from scaffolding are fine, or you can add/modify: */
 .contactFiltering {
-  margin-bottom: 16px;
-}
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  color: #333333;
+  margin: 16px auto;
+  max-width: 1200px;
 
-.headerActions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  
-  > div {
-    cursor: pointer;
-    padding: 6px 12px;
-    border-radius: 4px;
-    &:hover {
-      background-color: "[theme: neutralLighter, default: #f3f2f1]";
+  .departmentsGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+    width: 100%;
+
+    @media (max-width: 1024px) {
+      grid-template-columns: repeat(3, 1fr);
     }
+    @media (max-width: 768px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    @media (max-width: 480px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .departmentButton {
+    display: flex;
+    align-items: center;
+    background-color: #ffffff;
+    border: 1px solid #c51939; /* Brand red/burgundy border */
+    border-radius: 4px;
+    padding: 10px 14px;
+    min-height: 58px;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    text-align: left;
+    outline: none;
+    box-sizing: border-box;
+
+    &:hover {
+      background-color: #fdf3f5; /* Subtle brand-colored background tint on hover */
+      box-shadow: 0 2px 8px rgba(197, 25, 57, 0.15);
+    }
+
+    &.selected {
+      background-color: #c51939;
+      color: #ffffff;
+
+      .deptIcon {
+        fill: #ffffff;
+      }
+      .deptLabel {
+        color: #ffffff;
+      }
+    }
+  }
+
+  .iconContainer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+
+  .deptIcon {
+    width: 20px;
+    height: 20px;
+    fill: #333333;
+    transition: fill 0.15s ease-in-out;
+  }
+
+  .deptLabel {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: #333333;
+    transition: color 0.15s ease-in-out;
+    word-break: break-word;
   }
 }
 
-.headerActionsContainer {
+.headerContainer {
   display: flex;
-  justify-content: flex-end; /* Aligns actions to the right */
-  padding: 8px 16px; /* Add some padding around the actions */
-  border-bottom: 1px solid "[theme: neutralQuaternary, default: #e5e5e5]";
-  margin-bottom: 16px; /* Space between actions and tabs */
-}
-
-.userAction {
-  padding: 0 !important; /* Override padding for the image container */
-  display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 12px 0 24px 0;
 }
 
-.userImage {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+.title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 500;
+  color: #212121;
 }
 
-.filtersContainer {
-  margin-bottom: 16px;
-  display: flex; /* Example: if you want filters side-by-side later */
-  gap: 16px; /* Space between filter elements if they are flex items */
+.searchContainer {
+  flex: 1 1 350px;
+  max-width: 600px;
 }
 
-.actionsContainer {
-  margin-bottom: 16px;
+/* Override Fluent UI TextField styling to look like the mock search bar */
+.searchField {
+  :global(.ms-TextField-fieldGroup) {
+    border: 1px solid #bfbfbf !important;
+    border-radius: 4px !important;
+    height: 38px !important;
+    background-color: #ffffff !important;
+    transition: border-color 0.15s ease-in-out;
+
+    &:hover {
+      border-color: #8a8886 !important;
+    }
+
+    &:focus-within {
+      border-color: #c51939 !important; /* brand focus border */
+    }
+  }
+
+  :global(.ms-TextField-field) {
+    font-size: 14px !important;
+    padding-left: 8px !important;
+    color: #333333 !important;
+    
+    &::placeholder {
+      color: #7a7a7a !important;
+      font-style: normal !important;
+    }
+  }
+
+  :global(.ms-TextField-icon) {
+    color: #c51939 !important; /* Brand red color for search icon */
+    font-size: 16px !important;
+    bottom: 8px !important;
+  }
 }
 
 .resultsContainer {
-  margin-top: 16px;
-  border: 1px solid #ccc; /* Just to see it */
-  padding: 10px;
-  min-height: 100px;
+  margin-top: 8px;
 }
 
+.spinner {
+  margin: 40px 0;
+}
 
-//#region ContactCard
-.cardContainer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+.noResults {
+  padding: 30px;
+  text-align: center;
+  color: #666666;
+  font-size: 15px;
+}
 
-  :hover {
-    background-color: "[theme: neutralQuaternaryAlt, default: #f5f5f5]";
-    transition: 0.3s;
+.tableWrapper {
+  overflow-x: auto;
+  border-top: 1px solid #e0e0e0;
+}
+
+.contactsTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+
+  th {
+    padding: 16px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #212121;
+    border-bottom: 1px solid #e0e0e0;
+    white-space: nowrap;
   }
 
-  :active {
-    background-color: "[theme: neutralQuaternary, default: #e5e5e5]";
-    transition: 0.3s;
+  td {
+    padding: 16px 12px;
+    vertical-align: middle;
+    font-size: 14px;
+    color: #333333;
+    border-bottom: 1px solid #eeeeee;
   }
 }
 
+/* Column width hints */
+.colPhoto { width: 80px; }
+.colFunction { width: 140px; }
+.colName { width: 280px; }
+.colEmail { width: 200px; }
+.colMobile { width: 160px; }
+.colDept { width: 100px; }
+.colOffice { width: 200px; }
 
-.contactCard {
-  border: none;
-  border-radius: 4px;
-  padding: 15px;
-  margin: 8px;
-  background-color: #ffffff;
-  
+/* Cell content styles */
+.cellPhoto {
+  padding-left: 0 !important;
+}
 
-  width: calc(45% - 1rem); /* Example: for 5 cards per row, considering margin */
-  min-width: 180px; /* Minimum width for a card */
-
+.photoContainer {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  overflow: hidden;
   display: flex;
   align-items: center;
-  flex-direction: row;
+  justify-content: center;
+  background-color: #cccccc; /* Silhouette background */
+}
 
-  h3 {
-    margin-top: 0;
-    margin-bottom: 0.2rem;
-    font-size: 1.0rem;
-    color: "[theme: themeDarkAlt, default: #000000]";
+.contactPhoto {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.silhouettePlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff; /* White silhouette outline */
+}
+
+.cellFunction {
+  color: #666666;
+}
+
+.cellName {
+  vertical-align: top !important;
+  padding-top: 16px !important;
+}
+
+.cellMobile {
+  vertical-align: middle;
+}
+
+.cellOffice {
+  vertical-align: middle;
+}
+
+.contactRow {
+  // Placeholder for row-specific styling
+}
+
+.nameBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fullNameText {
+  font-weight: 700;
+  color: #212121;
+}
+
+.descriptionText {
+  font-size: 13px;
+  color: #555555;
+  white-space: pre-line;
+  line-height: 1.35;
+}
+
+.cellEmail {
+  word-break: break-all;
+}
+
+.emailLink {
+  color: #c51939; /* Brand red color */
+  text-decoration: underline;
+  font-weight: 500;
+
+  &:hover {
+    color: #a81530;
+  }
+}
+
+.phoneBlock {
+  margin-bottom: 4px;
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.phoneLink {
+  color: #c51939; /* Brand red color */
+  text-decoration: underline;
+  font-weight: 500;
+
+  &:hover {
+    color: #a81530;
+  }
+}
+
+.cellDept {
+  vertical-align: top !important;
+  padding-top: 16px !important;
+}
+
+.deptAbbr {
+  color: #c51939; /* Brand red color */
+  font-weight: 700;
+}
+
+.deptFilterButton {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: #c51939; /* Brand red color */
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+    color: #a81530;
+  }
+}
+
+.officeBlock {
+  white-space: nowrap;
+}
+
+.roomText {
+  color: #333333;
+}
+
+.separatorText {
+  color: #777777;
+}
+
+.buildingText {
+  color: #333333;
+  font-weight: 500;
+}
+
+.subDeptsSection {
+  margin: 24px 0;
+  padding: 16px 0;
+  border-top: 1px solid #edebe9;
+  border-bottom: 1px solid #edebe9;
+}
+
+.subDeptsTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #323130;
+  margin: 0 0 12px 0;
+}
+
+.subDeptsGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.subDeptLinkButton {
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid #d2d0ce;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  text-align: left;
+  outline: none;
+
+  &:hover {
+    background-color: #f3f2f1;
+    border-color: #a19f9d;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
-  p {
-    margin: 0.25rem 0;
-    font-size: 0.9rem;
-    color: "[theme: black, default: #000000]";
-  }
-  
+  &.selected {
+    background-color: #c51939;
+    border-color: #c51939;
 
-  .contactInfo {
-    padding-left: 0.8rem;
-  }
-
-  .subInfo {
-    p {
-      color: "[theme: themePrimary, default: #000000]";
-      font-size: 0.8rem;
+    .subDeptIcon {
+      fill: #ffffff;
+    }
+    .subDeptLabel {
+      color: #ffffff;
     }
   }
 }
-  
-.contactImage {
-  width: 4.5rem; // Or 100% to fill a container
-  height: 4.5rem;
-  border-radius: 50%; // Makes it circular if both sides are the same
-  object-fit: cover;  // Scales image nicely
-  display: block;     // To allow margin auto if you want to center it
-  margin-left: auto;
-  margin-right: auto;
+
+.subDeptIconContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  flex-shrink: 0;
 }
-//#endregion
+
+.subDeptIcon {
+  fill: #605e5c;
+  transition: fill 0.15s ease-in-out;
+}
+
+.subDeptLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: #323130;
+  transition: color 0.15s ease-in-out;
+}
+
+.groupedResultsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.subDeptSectionGroup {
+  scroll-margin-top: 24px; /* Ensure space at the top when scrolled to via anchor */
+}
+
+.subDeptGroupHeader {
+  font-size: 16px;
+  font-weight: 600;
+  color: #201f1e;
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #edebe9;
+}

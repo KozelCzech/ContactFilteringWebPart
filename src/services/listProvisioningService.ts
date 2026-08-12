@@ -21,11 +21,8 @@ export const provisionLists = async (sp: SPFI): Promise<void> => {
       return result.Id;
     };
 
-    // Ensure the 4 required lists exist and obtain their IDs
-    const contactFilteringTestId = await ensureList(SP_LISTS.ContactFilteringTest, "List of Contacts");
-    const oddeleniId = await ensureList(SP_LISTS.Oddeleni, "List of Departments");
-    const poziceId = await ensureList(SP_LISTS.Pozice, "List of Positions");
-    await ensureList(SP_LISTS.Uvazky, "List of Commitments");
+    // Ensure only the one required list exists and obtain its ID
+    await ensureList(SP_LISTS.ContactFilteringTest, "List of Contacts");
 
     // Helper to add missing fields in a single query check per list
     const ensureFieldsForList = async (listTitle: string, fieldsToEnsure: { name: string, addFn: () => Promise<unknown> }[]): Promise<void> => {
@@ -44,40 +41,25 @@ export const provisionLists = async (sp: SPFI): Promise<void> => {
     // 2. Provision fields for ContactFilteringTest
     const contactList = sp.web.lists.getByTitle(SP_LISTS.ContactFilteringTest);
     await ensureFieldsForList(SP_LISTS.ContactFilteringTest, [
-      { name: "FirstName", addFn: () => contactList.fields.addText("FirstName") },
-      { name: "LastName", addFn: () => contactList.fields.addText("LastName") },
-      { name: "Email", addFn: () => contactList.fields.addText("Email") },
-      { name: "PhoneNumber", addFn: () => contactList.fields.addText("PhoneNumber") },
+      { name: "company", addFn: () => contactList.fields.addText("company") },
+      { name: "department", addFn: () => contactList.fields.addText("department") },
+      { name: "displayName", addFn: () => contactList.fields.addText("displayName") },
+      { name: "displayNamePrintable", addFn: () => contactList.fields.addText("displayNamePrintable") },
+      { name: "givenName", addFn: () => contactList.fields.addText("givenName") },
+      { name: "homePhone", addFn: () => contactList.fields.addText("homePhone") },
+      { name: "l", addFn: () => contactList.fields.addText("l") },
+      { name: "mail", addFn: () => contactList.fields.addText("mail") },
+      { name: "name", addFn: () => contactList.fields.addText("name") },
+      { name: "otherHomePhone", addFn: () => contactList.fields.addText("otherHomePhone") },
+      { name: "pager", addFn: () => contactList.fields.addText("pager") },
+      { name: "physicalDeliveryOfficeName", addFn: () => contactList.fields.addText("physicalDeliveryOfficeName") },
+      { name: "roomNumber", addFn: () => contactList.fields.addText("roomNumber") },
+      { name: "sn", addFn: () => contactList.fields.addText("sn") },
+      { name: "telephoneNumber", addFn: () => contactList.fields.addText("telephoneNumber") },
+      { name: "mobile", addFn: () => contactList.fields.addText("mobile") },
+      { name: "manager", addFn: () => contactList.fields.addText("manager") },
       { name: "Image", addFn: () => contactList.fields.addText("Image") },
-      { name: "TimeOffHours", addFn: () => contactList.fields.addNumber("TimeOffHours") },
-      { name: "Leader", addFn: () => contactList.fields.addLookup("Leader", { LookupListId: contactFilteringTestId, LookupFieldName: "Title" }) },
-      { name: "BackupLeader", addFn: () => contactList.fields.addLookup("BackupLeader", { LookupListId: contactFilteringTestId, LookupFieldName: "Title" }) }
-    ]);
-
-    // 3. Provision fields for Oddeleni (Departments)
-    const oddeleniList = sp.web.lists.getByTitle(SP_LISTS.Oddeleni);
-    await ensureFieldsForList(SP_LISTS.Oddeleni, [
-      { name: "UniqueCode", addFn: () => oddeleniList.fields.addNumber("UniqueCode") },
-      { name: "Location", addFn: () => oddeleniList.fields.addText("Location") },
-      { name: "Leader", addFn: () => oddeleniList.fields.addLookup("Leader", { LookupListId: contactFilteringTestId, LookupFieldName: "Title" }) },
-      { name: "LeaderDepartment", addFn: () => oddeleniList.fields.addLookup("LeaderDepartment", { LookupListId: oddeleniId, LookupFieldName: "Title" }) }
-    ]);
-
-    // 4. Provision fields for Pozice (Positions)
-    const poziceList = sp.web.lists.getByTitle(SP_LISTS.Pozice);
-    await ensureFieldsForList(SP_LISTS.Pozice, [
-      { name: "Department", addFn: () => poziceList.fields.addLookup("Department", { LookupListId: oddeleniId, LookupFieldName: "Title" }) }
-    ]);
-
-    // 5. Provision fields for Uvazky (Commitments)
-    const uvazkyList = sp.web.lists.getByTitle(SP_LISTS.Uvazky);
-    await ensureFieldsForList(SP_LISTS.Uvazky, [
-      { name: "Employee", addFn: () => uvazkyList.fields.addLookup("Employee", { LookupListId: contactFilteringTestId, LookupFieldName: "Title" }) },
-      { name: "Position", addFn: () => uvazkyList.fields.addLookup("Position", { LookupListId: poziceId, LookupFieldName: "Title" }) },
-      { name: "MainCommitment", addFn: () => uvazkyList.fields.addBoolean("MainCommitment") },
-      { name: "From", addFn: () => uvazkyList.fields.addDateTime("From") },
-      { name: "To", addFn: () => uvazkyList.fields.addDateTime("To") },
-      { name: "WorkHoursPerDay", addFn: () => uvazkyList.fields.addNumber("WorkHoursPerDay") }
+      { name: "upn", addFn: () => contactList.fields.addText("upn") }
     ]);
 
     console.log("List provisioning completed successfully.");
