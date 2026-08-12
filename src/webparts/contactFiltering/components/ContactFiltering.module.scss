@@ -183,9 +183,9 @@
 .colPhoto { width: 80px; }
 .colFunction { width: 140px; }
 .colName { width: 280px; }
-.colEmail { width: 200px; }
+.colEmail { width: 260px; }
 .colMobile { width: 160px; }
-.colDept { width: 100px; }
+.colDept { width: 100px; text-align: center; }
 .colOffice { width: 200px; }
 
 /* Cell content styles */
@@ -290,6 +290,7 @@
 .cellDept {
   vertical-align: top !important;
   padding-top: 16px !important;
+  text-align: center;
 }
 
 .deptAbbr {
@@ -306,7 +307,7 @@
   color: #c51939; /* Brand red color */
   font-weight: 700;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   text-decoration: none;
 
   &:hover {
@@ -330,6 +331,7 @@
 .buildingText {
   color: #333333;
   font-weight: 500;
+  text-decoration: none !important;
 }
 
 .subDeptsSection {
