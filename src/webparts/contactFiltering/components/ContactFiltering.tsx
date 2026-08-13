@@ -81,6 +81,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedSubDepartment, setSelectedSubDepartment] = useState<string | null>(null);
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
+  const [subDeptMapping, setSubDeptMapping] = useState<Record<string, string>>({});
 
   const listName: string = SP_LISTS.ContactFilteringTest;
 
@@ -102,7 +103,26 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       }
     };
 
+    const fetchSubDepartmentMapping = async (): Promise<void> => {
+      try {
+        const items = await props.sp.web.lists.getByTitle('SubDepartment').items
+          .select('Title', 'DeptText')
+          .top(5000)();
+        
+        const mapping: Record<string, string> = {};
+        items.forEach(item => {
+          if (item.DeptText && item.Title) {
+            mapping[item.DeptText.trim()] = item.Title.trim();
+          }
+        });
+        setSubDeptMapping(mapping);
+      } catch (err) {
+        console.error("Failed to load sub-department mapping: ", err);
+      }
+    };
+
     fetchUniqueDepartments().catch(err => console.error(err));
+    fetchSubDepartmentMapping().catch(err => console.error(err));
   }, [props.sp, listName]);
 
   const createSearchFilter = (query: string): string => {
@@ -136,7 +156,11 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     const filters: string[] = [];
 
     if (deptCode) {
-      filters.push(`substringof('${deptCode}', department)`);
+      if (deptCode === 'KGŘ') {
+        filters.push(`(substringof('KGŘ', department) or substringof('GŘ', department) or substringof('ŘNM', department) or substringof('ŘMN', department))`);
+      } else {
+        filters.push(`substringof('${deptCode}', department)`);
+      }
     }
 
     if (query.trim() !== "") {
@@ -233,6 +257,11 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   const getSubDepartmentsFor = (baseCode: string): string[] => {
     return availableDepartments.filter(sub => {
+      if (baseCode === 'KGŘ') {
+        if (sub.startsWith('GŘ') || sub.startsWith('ŘNM') || sub.startsWith('ŘMN')) {
+          return true;
+        }
+      }
       if (!sub.startsWith(baseCode)) return false;
       if (sub.length === baseCode.length) return true;
       const nextChar = sub.charAt(baseCode.length);
@@ -241,6 +270,10 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   };
 
   const formatSubDeptButtonLabel = (subDept: string): string => {
+    const title = subDeptMapping[subDept];
+    if (title) {
+      return `${subDept} – ${title}`;
+    }
     const baseDept = DEPARTMENTS.find(d => subDept.includes(d.code));
     if (baseDept) {
       const baseName = baseDept.label.replace(`${baseDept.code} –`, '').replace(`${baseDept.code} -`, '').trim();
@@ -276,6 +309,13 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
   const handleDeptClick = (deptValue: string | undefined): void => {
     if (!deptValue) return;
+
+    if (deptValue.startsWith('GŘ') || deptValue.startsWith('ŘNM') || deptValue.startsWith('ŘMN')) {
+      setSelectedDepartment('KGŘ');
+      setSelectedSubDepartment(deptValue);
+      return;
+    }
+
     const baseDept = DEPARTMENTS.find(d => deptValue.includes(d.code));
     if (baseDept) {
       setSelectedDepartment(baseDept.code);
