@@ -96,12 +96,49 @@
 }
 
 .searchContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex: 1 1 350px;
   max-width: 600px;
 }
 
+.clearFiltersButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  background-color: #ffffff;
+  border: 1px solid #bfbfbf;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #323130;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+
+  svg {
+    fill: #605e5c;
+    transition: fill 0.15s ease-in-out;
+  }
+
+  &:hover {
+    background-color: #f3f2f1;
+    border-color: #8a8886;
+    color: #c51939; /* Brand red color */
+
+    svg {
+      fill: #c51939;
+    }
+  }
+}
+
 /* Override Fluent UI TextField styling to look like the mock search bar */
 .searchField {
+  flex: 1;
   :global(.ms-TextField-fieldGroup) {
     border: 1px solid #bfbfbf !important;
     border-radius: 4px !important;
@@ -158,6 +195,7 @@
 
 .contactsTable {
   width: 100%;
+  min-width: 1100px;
   border-collapse: collapse;
   text-align: left;
 
@@ -227,6 +265,7 @@
 
 .cellMobile {
   vertical-align: middle;
+  white-space: nowrap !important;
 }
 
 .cellOffice {
@@ -256,13 +295,14 @@
 }
 
 .cellEmail {
-  word-break: break-all;
+  white-space: nowrap !important;
 }
 
 .emailLink {
   color: #c51939; /* Brand red color */
   text-decoration: underline;
   font-weight: 500;
+  white-space: nowrap;
 
   &:hover {
     color: #a81530;
@@ -271,6 +311,7 @@
 
 .phoneBlock {
   margin-bottom: 4px;
+  white-space: nowrap;
   &:last-child {
     margin-bottom: 0;
   }
@@ -280,6 +321,7 @@
   color: #c51939; /* Brand red color */
   text-decoration: underline;
   font-weight: 500;
+  white-space: nowrap;
 
   &:hover {
     color: #a81530;
@@ -420,4 +462,108 @@
   margin: 0 0 12px 0;
   padding-bottom: 8px;
   border-bottom: 1px dashed #edebe9;
+}
+
+.suggestionBox {
+  margin: 20px auto;
+  padding: 20px 24px;
+  background-color: #f3f2f1;
+  border-left: 4px solid #c51939; /* Brand red color */
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #323130;
+  text-align: left;
+  max-width: 650px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.suggestionTitle {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  color: #201f1e;
+}
+
+.suggestionSubtitle {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: #605e5c;
+}
+
+.suggestionList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.suggestionItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #ffffff;
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+  gap: 16px;
+}
+
+.suggestionName {
+  font-size: 14px;
+  color: #323130;
+}
+
+.suggestionBtn {
+  background-color: #c51939;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+  outline: none;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: #a81530;
+  }
+}
+
+.suggestionFooter {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #edebe9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.footerText {
+  font-size: 13px;
+  color: #323130;
+}
+
+.globalSearchBtn {
+  background-color: #ffffff;
+  color: #c51939; /* Brand red color */
+  border: 1px solid #c51939;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  outline: none;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: #c51939;
+    color: #ffffff;
+  }
 }

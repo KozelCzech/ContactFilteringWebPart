@@ -9,6 +9,9 @@ import {
 import { IContact } from '../models/IContact';
 import { getContactItemsUrl } from '../../../services/contactServices';
 import { SP_LISTS } from '../../../services/spConstants';
+import { GraphFI } from '@pnp/graph';
+import "@pnp/graph/users";
+import "@pnp/graph/photos";
 
 interface IDepartment {
   code: string;
@@ -74,6 +77,78 @@ const DEPARTMENTS: IDepartment[] = [
   }
 ];
 
+// Global in-memory cache for Graph profile photos
+const photoCache: Record<string, string> = {};
+
+interface IContactPhotoProps {
+  email: string | undefined;
+  upn: string | undefined;
+  fallbackImageUrl: string;
+  fullName: string;
+  graph: GraphFI;
+}
+
+const ContactPhoto: React.FC<IContactPhotoProps> = ({ email, upn, fallbackImageUrl, fullName, graph }) => {
+  const userKey = (upn || email || "").trim();
+  const initialUrl = userKey && photoCache[userKey] !== undefined
+    ? (photoCache[userKey] || fallbackImageUrl || "")
+    : (fallbackImageUrl || "");
+
+  const [photoUrl, setPhotoUrl] = useState<string>(initialUrl);
+
+  useEffect(() => {
+    const key = (upn || email || "").trim();
+    if (!key) {
+      setPhotoUrl(fallbackImageUrl || "");
+      return;
+    }
+
+    if (photoCache[key] !== undefined) {
+      setPhotoUrl(photoCache[key] || fallbackImageUrl || "");
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchPhoto = async (): Promise<void> => {
+      try {
+        const response = await graph.users.getById(key).photo.getBlob();
+        if (response && isMounted) {
+          const url = URL.createObjectURL(response);
+          photoCache[key] = url;
+          setPhotoUrl(url);
+        } else if (isMounted) {
+          photoCache[key] = "";
+          setPhotoUrl(fallbackImageUrl || "");
+        }
+      } catch {
+        if (isMounted) {
+          photoCache[key] = "";
+          setPhotoUrl(fallbackImageUrl || "");
+        }
+      }
+    };
+
+    fetchPhoto().catch(console.error);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [email, upn, fallbackImageUrl, graph]);
+
+  if (photoUrl) {
+    return <img src={photoUrl} alt={fullName} className={styles.contactPhoto} />;
+  }
+
+  return (
+    <div className={styles.silhouettePlaceholder}>
+      <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
+        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+      </svg>
+    </div>
+  );
+};
+
 const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [contacts, setContacts] = useState<IContact[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -82,48 +157,47 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
   const [selectedSubDepartment, setSelectedSubDepartment] = useState<string | null>(null);
   const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
   const [subDeptMapping, setSubDeptMapping] = useState<Record<string, string>>({});
+  const [globalSearchSuggestions, setGlobalSearchSuggestions] = useState<Array<{
+    name: string;
+    department: string;
+    contact: IContact;
+  }>>([]);
+  const [totalSuggestionsCount, setTotalSuggestionsCount] = useState<number>(0);
 
   const listName: string = SP_LISTS.ContactFilteringTest;
 
   useEffect(() => {
-    const fetchUniqueDepartments = async (): Promise<void> => {
-      try {
-        const items = await props.sp.web.lists.getByTitle(listName).items
-          .select('department')
-          .top(5000)();
-        
-        const depts = items
-          .map(item => item.department)
-          .filter((val): val is string => typeof val === 'string' && val.trim() !== "");
-        
-        const unique = Array.from(new Set(depts)).sort((a, b) => a.localeCompare(b, 'cs'));
-        setAvailableDepartments(unique);
-      } catch (err) {
-        console.error("Failed to load unique departments on mount: ", err);
-      }
-    };
-
-    const fetchSubDepartmentMapping = async (): Promise<void> => {
+    const fetchSubDepartmentsAndMapping = async (): Promise<void> => {
       try {
         const items = await props.sp.web.lists.getByTitle('SubDepartment').items
           .select('Title', 'DeptText')
           .top(5000)();
         
         const mapping: Record<string, string> = {};
+        const depts: string[] = [];
+        
         items.forEach(item => {
-          if (item.DeptText && item.Title) {
-            mapping[item.DeptText.trim()] = item.Title.trim();
+          if (item.DeptText) {
+            const code = item.DeptText.trim();
+            if (code !== "") {
+              depts.push(code);
+              if (item.Title) {
+                mapping[code] = item.Title.trim();
+              }
+            }
           }
         });
+        
+        const unique = Array.from(new Set(depts)).sort((a, b) => a.localeCompare(b, 'cs'));
+        setAvailableDepartments(unique);
         setSubDeptMapping(mapping);
       } catch (err) {
-        console.error("Failed to load sub-department mapping: ", err);
+        console.error("Failed to load sub-department data: ", err);
       }
     };
 
-    fetchUniqueDepartments().catch(err => console.error(err));
-    fetchSubDepartmentMapping().catch(err => console.error(err));
-  }, [props.sp, listName]);
+    fetchSubDepartmentsAndMapping().catch(err => console.error(err));
+  }, [props.sp]);
 
   const createSearchFilter = (query: string): string => {
     const terms = query.trim().split(/\s+/).filter(Boolean);
@@ -157,7 +231,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
 
     if (deptCode) {
       if (deptCode === 'KGŘ') {
-        filters.push(`(substringof('KGŘ', department) or substringof('GŘ', department) or substringof('ŘNM', department) or substringof('ŘMN', department))`);
+        filters.push(`(substringof('KGŘ', department) or substringof('GŘ', department) or substringof('ŘNM', department) or substringof('ŘMN', department) or substringof('Pastrňák', sn) or substringof('Pastrnak', sn) or substringof('Pastrňák', displayName) or substringof('Pastrnak', displayName))`);
       } else {
         filters.push(`substringof('${deptCode}', department)`);
       }
@@ -233,6 +307,102 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       clearTimeout(handler);
     };
   }, [searchText, selectedDepartment]);
+
+  const isPastrnak = (c: IContact): boolean => {
+    const name = ((c.displayName || "") + " " + (c.displayNamePrintable || "") + " " + (c.sn || "") + " " + (c.name || "")).toLowerCase();
+    return name.indexOf("pastrňák") > -1 || name.indexOf("pastrnak") > -1;
+  };
+
+  const fetchGlobalSearchSuggestions = async (query: string): Promise<void> => {
+    try {
+      const searchFilter = createSearchFilter(query);
+      if (!searchFilter) {
+        setGlobalSearchSuggestions([]);
+        setTotalSuggestionsCount(0);
+        return;
+      }
+      
+      const topLimit = 100;
+      const initialUrl = getContactItemsUrl(props.sp, [], searchFilter, topLimit, []);
+      const cleanedUrl = `${props.webAbsoluteUrl}/${initialUrl}`;
+
+      const response = await fetch(cleanedUrl, {
+        headers: { Accept: "application/json;odata=verbose" }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const results = data.d.results as IContact[];
+        setTotalSuggestionsCount(results.length);
+        if (results.length > 0) {
+          const suggestions = results.map(firstMatch => {
+            const matchName = firstMatch.displayNamePrintable || firstMatch.displayName || firstMatch.name || `${firstMatch.givenName || ""} ${firstMatch.sn || ""}`.trim();
+            return {
+              name: matchName,
+              department: firstMatch.department || "",
+              contact: firstMatch
+            };
+          });
+          setGlobalSearchSuggestions(suggestions);
+        } else {
+          setGlobalSearchSuggestions([]);
+        }
+      } else {
+        setGlobalSearchSuggestions([]);
+        setTotalSuggestionsCount(0);
+      }
+    } catch (e) {
+      console.error("Failed to fetch global search suggestions: ", e);
+      setGlobalSearchSuggestions([]);
+      setTotalSuggestionsCount(0);
+    }
+  };
+
+  useEffect(() => {
+    const trimmed = searchText.trim();
+    if (!isLoading && contacts.length === 0 && selectedDepartment && trimmed !== "") {
+      fetchGlobalSearchSuggestions(trimmed).catch(err => {
+        console.error(err);
+      });
+    } else {
+      setGlobalSearchSuggestions([]);
+      setTotalSuggestionsCount(0);
+    }
+  }, [contacts, isLoading, searchText, selectedDepartment]);
+
+  const handleShowSuggestion = (contact: IContact): void => {
+    const deptValue = contact.department;
+    if (deptValue) {
+      const baseDept = DEPARTMENTS.find(d => deptValue.includes(d.code));
+      if (baseDept) {
+        setSelectedDepartment(baseDept.code);
+        setSelectedSubDepartment(deptValue);
+      } else {
+        setSelectedDepartment(null);
+        setSelectedSubDepartment(deptValue);
+      }
+    } else {
+      setSelectedDepartment(null);
+      setSelectedSubDepartment(null);
+    }
+    setGlobalSearchSuggestions([]);
+    setTotalSuggestionsCount(0);
+  };
+
+  const handleClearFilters = (): void => {
+    setSearchText("");
+    setSelectedDepartment(null);
+    setSelectedSubDepartment(null);
+    setGlobalSearchSuggestions([]);
+    setTotalSuggestionsCount(0);
+  };
+
+  const handleGlobalSearchOnly = (): void => {
+    setSelectedDepartment(null);
+    setSelectedSubDepartment(null);
+    setGlobalSearchSuggestions([]);
+    setTotalSuggestionsCount(0);
+  };
 
   const getContactImageUrl = (contact: IContact): string => {
     try {
@@ -339,15 +509,13 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       <tr key={contact.Id}>
         <td className={styles.cellPhoto}>
           <div className={styles.photoContainer}>
-            {imageUrl ? (
-              <img src={imageUrl} alt={displayName} className={styles.contactPhoto} />
-            ) : (
-              <div className={styles.silhouettePlaceholder}>
-                <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
-                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                </svg>
-              </div>
-            )}
+            <ContactPhoto
+              email={contact.mail}
+              upn={contact.upn}
+              fallbackImageUrl={imageUrl}
+              fullName={displayName}
+              graph={props.graph}
+            />
           </div>
         </td>
         <td className={styles.cellFunction}>
@@ -443,6 +611,18 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
             iconProps={{ iconName: 'Search' }}
             className={styles.searchField}
           />
+          {(searchText !== "" || selectedDepartment !== null || selectedSubDepartment !== null) && (
+            <button
+              type="button"
+              className={styles.clearFiltersButton}
+              onClick={handleClearFilters}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+              </svg>
+              Vymazat filtry
+            </button>
+          )}
         </div>
       </div>
 
@@ -479,7 +659,51 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
         {isLoading && <Spinner label="Vyhledávám..." className={styles.spinner} />}
         
         {!isLoading && (searchText.trim() !== "" || selectedDepartment !== null) && displayedContacts.length === 0 && (
-          <div className={styles.noResults}>Nebyly nalezeny žádné kontakty.</div>
+          <div className={styles.noResults}>
+            Nebyly nalezeny žádné kontakty.
+            {globalSearchSuggestions.length > 0 && (
+              <div className={styles.suggestionBox}>
+                <p className={styles.suggestionTitle}>
+                  V oddělení <strong>{DEPARTMENTS.find(d => d.code === selectedDepartment)?.label.split('–')[0].trim() || selectedDepartment}</strong> jsme „{searchText}“ nenašli.
+                </p>
+                <p className={styles.suggestionSubtitle}>
+                  Nalezli jsme ale tyto shody v jiných odděleních:
+                </p>
+                <ul className={styles.suggestionList}>
+                  {globalSearchSuggestions.slice(0, 5).map((suggestion, idx) => {
+                    const deptLabel = subDeptMapping[suggestion.department] || suggestion.department;
+                    const displayDept = deptLabel ? `${suggestion.department} – ${deptLabel}` : suggestion.department;
+                    return (
+                      <li key={idx} className={styles.suggestionItem}>
+                        <span className={styles.suggestionName}>
+                          <strong>{suggestion.name}</strong> ({displayDept})
+                        </span>
+                        <button
+                          type="button"
+                          className={styles.suggestionBtn}
+                          onClick={() => handleShowSuggestion(suggestion.contact)}
+                        >
+                          Zobrazit výsledek
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className={styles.suggestionFooter}>
+                  <span className={styles.footerText}>
+                    Celkem nalezeno shody napříč všemi odděleními: <strong>{totalSuggestionsCount}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.globalSearchBtn}
+                    onClick={handleGlobalSearchOnly}
+                  >
+                    Hledat bez filtru oddělení
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {!isLoading && displayedContacts.length > 0 && (
@@ -494,7 +718,12 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
                 );
 
                 subDeptsToProcess.forEach(subDept => {
-                  const subDeptContacts = contacts.filter(c => c.department === subDept);
+                  const subDeptContacts = contacts.filter(c => {
+                    if (subDept === 'ŘNM1' && isPastrnak(c)) {
+                      return true;
+                    }
+                    return c.department === subDept;
+                  });
                   if (subDeptContacts.length > 0) {
                     subDeptContacts.forEach(c => displayedGroupedIds.add(c.Id));
                     groupedViews.push(
