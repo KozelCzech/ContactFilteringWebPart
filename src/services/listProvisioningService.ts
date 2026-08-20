@@ -59,7 +59,9 @@ export const provisionLists = async (sp: SPFI): Promise<void> => {
       { name: "mobile", addFn: () => contactList.fields.addText("mobile") },
       { name: "manager", addFn: () => contactList.fields.addText("manager") },
       { name: "Image", addFn: () => contactList.fields.addText("Image") },
-      { name: "upn", addFn: () => contactList.fields.addText("upn") }
+      { name: "upn", addFn: () => contactList.fields.addText("upn") },
+      { name: "titlead", addFn: () => contactList.fields.addText("titlead") },
+      { name: "function", addFn: () => contactList.fields.addText("function") }
     ]);
 
     console.log("List provisioning completed successfully.");

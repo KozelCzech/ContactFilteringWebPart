@@ -519,11 +519,14 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
           </div>
         </td>
         <td className={styles.cellFunction}>
-          {contact.company || ""}
+          {contact.titlead || ""}
         </td>
         <td className={styles.cellName}>
           <div className={styles.nameBlock}>
             <span className={styles.fullNameText}>{displayName}</span>
+            {contact.function && (
+              <span className={styles.descriptionText}>{contact.function}</span>
+            )}
           </div>
         </td>
         <td className={styles.cellEmail}>

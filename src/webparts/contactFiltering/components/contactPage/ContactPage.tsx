@@ -64,9 +64,14 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                     )}
                     <div className={styles.workTitle}>
                         {contact.department && <span className={styles.departmentName}>{contact.department}</span>}
-                        {contact.department && contact.company && <span className={styles.separator}> • </span>}
-                        {contact.company && <span className={styles.companyName}>{contact.company}</span>}
+                        {contact.department && contact.titlead && <span className={styles.separator}> • </span>}
+                        {contact.titlead && <span className={styles.companyName}>{contact.titlead}</span>}
                     </div>
+                    {contact.function && (
+                        <div className={styles.jobFunction}>
+                            {contact.function}
+                        </div>
+                    )}
                 </div>
             </div>
 

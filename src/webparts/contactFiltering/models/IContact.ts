@@ -20,4 +20,6 @@ export interface IContact {
     manager?: string;
     Image?: string;
     upn?: string;
+    titlead?: string;
+    function?: string;
 }
