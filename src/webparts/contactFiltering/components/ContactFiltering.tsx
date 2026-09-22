@@ -77,7 +77,6 @@ const DEPARTMENTS: IDepartment[] = [
   }
 ];
 
-// Global in-memory cache for Graph profile photos
 const photoCache: Record<string, string> = {};
 
 interface IContactPhotoProps {
@@ -199,28 +198,41 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     fetchSubDepartmentsAndMapping().catch(err => console.error(err));
   }, [props.sp]);
 
+  const [existingFields, setExistingFields] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchListFields = async (): Promise<void> => {
+      try {
+        const fields = await props.sp.web.lists.getByTitle(listName).fields
+          .select("InternalName")
+          .top(5000)();
+        const names = fields.map(f => f.InternalName);
+        setExistingFields(names);
+      } catch (err) {
+        console.warn("Could not fetch list fields: ", err);
+      }
+    };
+    fetchListFields().catch(console.error);
+  }, [props.sp, listName]);
+
   const createSearchFilter = (query: string): string => {
     const terms = query.trim().split(/\s+/).filter(Boolean);
     if (terms.length === 0) return "";
 
+    const candidateFields = [
+      'displayName', 'givenName', 'sn', 'name', 'upn', 'mail',
+      'telephoneNumber', 'mobile', 'homePhone', 'otherMobile', 'otherHomePhone',
+      'pager', 'department', 'roomNumber', 'physicalDeliveryOfficeName'
+    ];
+
+    const searchFields = existingFields.length > 0
+      ? candidateFields.filter(f => existingFields.indexOf(f) !== -1)
+      : candidateFields.filter(f => f !== 'otherMobile' && f !== 'otherHomePhone');
+
     const termFilters = terms.map(term => {
       const escaped = term.replace(/'/g, "''");
-      return `(` +
-        `substringof('${escaped}', displayName) or ` +
-        `substringof('${escaped}', givenName) or ` +
-        `substringof('${escaped}', sn) or ` +
-        `substringof('${escaped}', name) or ` +
-        `substringof('${escaped}', upn) or ` +
-        `substringof('${escaped}', mail) or ` +
-        `substringof('${escaped}', telephoneNumber) or ` +
-        `substringof('${escaped}', mobile) or ` +
-        `substringof('${escaped}', homePhone) or ` +
-        `substringof('${escaped}', otherHomePhone) or ` +
-        `substringof('${escaped}', pager) or ` +
-        `substringof('${escaped}', department) or ` +
-        `substringof('${escaped}', roomNumber) or ` +
-        `substringof('${escaped}', physicalDeliveryOfficeName)` +
-      `)`;
+      const fieldSubstrings = searchFields.map(f => `substringof('${escaped}', ${f})`);
+      return `(${fieldSubstrings.join(' or ')})`;
     });
 
     return termFilters.join(' and ');
@@ -263,7 +275,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
       if (response.ok) {
         const data = await response.json();
         const newItems: IContact[] = (data.d.results as IContact[]).map(contact => contact);
-        // Sort contacts alphabetically by name (A to Z) using Czech locale sorting rules
         newItems.sort((a, b) => {
           const nameA = a.displayName || a.name || `${a.givenName || ""} ${a.sn || ""}`.trim() || "No Name";
           const nameB = b.displayName || b.name || `${b.givenName || ""} ${b.sn || ""}`.trim() || "No Name";
@@ -502,8 +513,19 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
     const displayName = contact.displayNamePrintable || fallbackName;
     
     const phoneNumbers: string[] = [];
-    if (contact.telephoneNumber) phoneNumbers.push(contact.telephoneNumber.trim());
-    if (contact.mobile) phoneNumbers.push(contact.mobile.trim());
+    const addPhone = (val?: string): void => {
+      if (val && val.trim()) {
+        const trimmed = val.trim();
+        if (phoneNumbers.indexOf(trimmed) === -1) {
+          phoneNumbers.push(trimmed);
+        }
+      }
+    };
+    addPhone(contact.telephoneNumber || contact.TelephoneNumber);
+    addPhone(contact.homePhone || contact.HomePhone);
+    addPhone(contact.mobile || contact.Mobile);
+    addPhone(contact.otherMobile || contact.OtherMobile);
+    addPhone(contact.otherHomePhone || contact.OtherHomePhone);
 
     return (
       <tr key={contact.Id}>
@@ -742,7 +764,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
                                 <th className={styles.colFunction}>Funkce</th>
                                 <th className={styles.colName}>Jméno</th>
                                 <th className={styles.colEmail}>E-mail</th>
-                                <th className={styles.colMobile}>Mobil</th>
+                                <th className={styles.colMobile}>Telefon</th>
                                 <th className={styles.colDept}>Oddělení</th>
                                 <th className={styles.colOffice}>Kancelář (budova)</th>
                               </tr>
@@ -757,7 +779,6 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
                   }
                 });
 
-                // Find unmatched contacts (if any)
                 const unmatchedContacts = contacts.filter(c => !displayedGroupedIds.has(c.Id));
                 if (unmatchedContacts.length > 0) {
                   groupedViews.push(
@@ -773,7 +794,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
                               <th className={styles.colFunction}>Funkce</th>
                               <th className={styles.colName}>Jméno</th>
                               <th className={styles.colEmail}>E-mail</th>
-                              <th className={styles.colMobile}>Mobil</th>
+                              <th className={styles.colMobile}>Telefon</th>
                               <th className={styles.colDept}>Oddělení</th>
                               <th className={styles.colOffice}>Kancelář (budova)</th>
                             </tr>
@@ -799,7 +820,7 @@ const ContactFiltering: React.FC<IContactFilteringProps> = (props) => {
                     <th className={styles.colFunction}>Funkce</th>
                     <th className={styles.colName}>Jméno</th>
                     <th className={styles.colEmail}>E-mail</th>
-                    <th className={styles.colMobile}>Mobil</th>
+                    <th className={styles.colMobile}>Telefon</th>
                     <th className={styles.colDept}>Oddělení</th>
                     <th className={styles.colOffice}>Kancelář (budova)</th>
                   </tr>

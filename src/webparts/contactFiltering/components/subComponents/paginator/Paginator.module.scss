@@ -21,7 +21,6 @@
             background-color: "[theme: neutralLighter, default: #f3f2f1]";
         }
 
-        // Styles for the disabled "Previous" and "Next" buttons
         &:disabled:not(.activePage) {
             background-color: "[theme: neutralLighter, default: #f3f2f1]";
             color: "[theme: neutralTertiary, default: #a19f9d]";
@@ -31,8 +30,6 @@
     }
 }
 
-// Styles for the active page button.
-// It has the `disabled` attribute, but we want it to look active.
 .activePage {
     background-color: "[theme: themePrimary, default: #0078d4]";
     color: "[theme: white, default: #ffffff]";

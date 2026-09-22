@@ -12,6 +12,5 @@ export const CzechDatePickerStrings: IDatePickerStrings = {
   shortDays: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
   goToToday: 'Přejít na dnešek',
   prevMonthAriaLabel: 'Předchozí měsíc',
-  nextMonthAriaLabel: 'Následující měsíc',
-  // You can translate other properties as needed
+  nextMonthAriaLabel: 'Následující měsíc'
 };

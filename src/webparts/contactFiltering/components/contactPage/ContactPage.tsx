@@ -1,5 +1,5 @@
 import * as React from 'react';
-import styles from './ContactPage.module.scss'; // Your SCSS styles
+import styles from './ContactPage.module.scss';
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/items";
@@ -76,7 +76,6 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
             </div>
 
             <div className={styles.infoGrid}>
-                {/* Contact Section */}
                 <div className={styles.infoSection}>
                     <h3 className={styles.sectionTitle}>
                         <Icon iconName="ContactInfo" className={styles.sectionIcon} />
@@ -99,35 +98,43 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                                 </span>
                             </div>
                         )}
-                        {contact.mobile && (
+                        {(contact.mobile || contact.Mobile) && (
                             <div className={styles.infoRow}>
                                 <span className={styles.infoLabel}>Mobil:</span>
                                 <span className={styles.infoValue}>
-                                    <Icon iconName="CellPhone" className={styles.rowIcon} /> {contact.mobile}
+                                    <Icon iconName="CellPhone" className={styles.rowIcon} /> {contact.mobile || contact.Mobile}
                                 </span>
                             </div>
                         )}
-                        {contact.telephoneNumber && (
+                        {(contact.otherMobile || contact.OtherMobile) && (
+                            <div className={styles.infoRow}>
+                                <span className={styles.infoLabel}>Další mobil:</span>
+                                <span className={styles.infoValue}>
+                                    <Icon iconName="CellPhone" className={styles.rowIcon} /> {contact.otherMobile || contact.OtherMobile}
+                                </span>
+                            </div>
+                        )}
+                        {(contact.telephoneNumber || contact.TelephoneNumber) && (
                             <div className={styles.infoRow}>
                                 <span className={styles.infoLabel}>Telefon do práce:</span>
                                 <span className={styles.infoValue}>
-                                    <Icon iconName="Phone" className={styles.rowIcon} /> {contact.telephoneNumber}
+                                    <Icon iconName="Phone" className={styles.rowIcon} /> {contact.telephoneNumber || contact.TelephoneNumber}
                                 </span>
                             </div>
                         )}
-                        {contact.homePhone && (
+                        {(contact.homePhone || contact.HomePhone) && (
                             <div className={styles.infoRow}>
                                 <span className={styles.infoLabel}>Domácí telefon:</span>
                                 <span className={styles.infoValue}>
-                                    <Icon iconName="Home" className={styles.rowIcon} /> {contact.homePhone}
+                                    <Icon iconName="Home" className={styles.rowIcon} /> {contact.homePhone || contact.HomePhone}
                                 </span>
                             </div>
                         )}
-                        {contact.otherHomePhone && (
+                        {(contact.otherHomePhone || contact.OtherHomePhone) && (
                             <div className={styles.infoRow}>
                                 <span className={styles.infoLabel}>Jiný domácí tel.:</span>
                                 <span className={styles.infoValue}>
-                                    <Icon iconName="Specialist" className={styles.rowIcon} /> {contact.otherHomePhone}
+                                    <Icon iconName="Specialist" className={styles.rowIcon} /> {contact.otherHomePhone || contact.OtherHomePhone}
                                 </span>
                             </div>
                         )}
@@ -142,7 +149,6 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                     </div>
                 </div>
 
-                {/* Organization & Location Section */}
                 <div className={styles.infoSection}>
                     <h3 className={styles.sectionTitle}>
                         <Icon iconName="Org" className={styles.sectionIcon} />
@@ -184,7 +190,6 @@ const ContactPage: React.FC<IContactPageProps> = (props) => {
                     </div>
                 </div>
 
-                {/* Personal Section */}
                 <div className={styles.infoSectionFull}>
                     <h3 className={styles.sectionTitle}>
                         <Icon iconName="Personalize" className={styles.sectionIcon} />

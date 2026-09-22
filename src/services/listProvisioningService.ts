@@ -6,39 +6,52 @@ import { SP_LISTS } from "./spConstants";
 
 export const provisionLists = async (sp: SPFI): Promise<void> => {
   try {
-    // 1. Get all existing lists in a single OData call
-    const existingLists = await sp.web.lists.select("Title", "Id")();
-    const existingListTitles = existingLists.map(l => l.Title);
-
-    // Helper to get list ID, creating it if it doesn't exist
     const ensureList = async (title: string, description: string): Promise<string> => {
-      const idx = existingListTitles.indexOf(title);
-      if (idx >= 0) {
-        return existingLists[idx].Id;
-      }
-      console.log(`Provisioning list: ${title}...`);
-      const result = await sp.web.lists.add(title, description, 100);
-      return result.Id;
-    };
-
-    // Ensure only the one required list exists and obtain its ID
-    await ensureList(SP_LISTS.ContactFilteringTest, "List of Contacts");
-
-    // Helper to add missing fields in a single query check per list
-    const ensureFieldsForList = async (listTitle: string, fieldsToEnsure: { name: string, addFn: () => Promise<unknown> }[]): Promise<void> => {
-      const list = sp.web.lists.getByTitle(listTitle);
-      const fields = await list.fields.select("InternalName")();
-      const internalNames = fields.map(f => f.InternalName);
-
-      for (const field of fieldsToEnsure) {
-        if (!internalNames.includes(field.name)) {
-          console.log(`Adding field ${field.name} to list ${listTitle}...`);
-          await field.addFn();
+      try {
+        const list = await sp.web.lists.getByTitle(title).select("Id")();
+        if (list && list.Id) {
+          return list.Id;
         }
+      } catch {
+        // List does not exist yet via getByTitle
+      }
+      try {
+        console.log(`Provisioning list: ${title}...`);
+        const result = await sp.web.lists.add(title, description, 100);
+        return result.Id;
+      } catch {
+        const list = await sp.web.lists.getByTitle(title).select("Id")();
+        return list.Id;
       }
     };
 
-    // 2. Provision fields for ContactFilteringTest
+    try {
+      await ensureList(SP_LISTS.ContactFilteringTest, "List of Contacts");
+    } catch (e) {
+      console.warn("ensureList encountered an issue: ", e);
+    }
+
+    const ensureFieldsForList = async (listTitle: string, fieldsToEnsure: { name: string, addFn: () => Promise<unknown> }[]): Promise<void> => {
+      try {
+        const list = sp.web.lists.getByTitle(listTitle);
+        const fields = await list.fields.select("InternalName").top(5000)();
+        const internalNames = fields.map(f => f.InternalName);
+
+        for (const field of fieldsToEnsure) {
+          if (!internalNames.includes(field.name)) {
+            try {
+              console.log(`Adding field ${field.name} to list ${listTitle}...`);
+              await field.addFn();
+            } catch (fieldErr) {
+              console.warn(`Could not add field ${field.name} to list ${listTitle}: `, fieldErr);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`ensureFieldsForList failed for list ${listTitle}: `, err);
+      }
+    };
+
     const contactList = sp.web.lists.getByTitle(SP_LISTS.ContactFilteringTest);
     await ensureFieldsForList(SP_LISTS.ContactFilteringTest, [
       { name: "company", addFn: () => contactList.fields.addText("company") },
@@ -57,6 +70,7 @@ export const provisionLists = async (sp: SPFI): Promise<void> => {
       { name: "sn", addFn: () => contactList.fields.addText("sn") },
       { name: "telephoneNumber", addFn: () => contactList.fields.addText("telephoneNumber") },
       { name: "mobile", addFn: () => contactList.fields.addText("mobile") },
+      { name: "otherMobile", addFn: () => contactList.fields.addText("otherMobile") },
       { name: "manager", addFn: () => contactList.fields.addText("manager") },
       { name: "Image", addFn: () => contactList.fields.addText("Image") },
       { name: "upn", addFn: () => contactList.fields.addText("upn") },
